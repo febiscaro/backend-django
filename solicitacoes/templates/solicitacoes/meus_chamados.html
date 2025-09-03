@@ -1,0 +1,1136 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+
+    <style>
+    /* ===== Base ===== */
+    .quad-title{font-weight:800;letter-spacing:.2px;margin:.75rem 0 1rem}
+    .glass{
+      border:0;border-radius:14px;box-shadow:0 10px 28px rgba(3,10,26,.12);
+      background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(255,255,255,.88));
+      backdrop-filter:blur(3px);
+    }
+
+    /* ===== Cabeçalho das seções (não clicável) ===== */
+    .section-head{
+      border-radius:12px;
+      padding:.55rem .9rem;
+      display:flex; align-items:center; gap:.75rem;
+      cursor:default; user-select:none;
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,.08);
+      min-height:44px;
+      flex-wrap:nowrap;                 /* NÃO quebrar a barra */
+    }
+    .section-head h3{font-size:1rem;font-weight:700;margin:0}
+
+    .toggle-icon{transition:transform .25s ease}
+    .section-head .toggle-icon{transform:rotate(-90deg)}
+    .section-head.expanded .toggle-icon{transform:rotate(0)}
+
+    /* ===== Ações (select + botão) ===== */
+    .head-actions{
+      margin-left:auto; display:flex; align-items:center; gap:.5rem;
+      flex-wrap:nowrap;
+    }
+    .head-actions > *{ flex:0 0 auto }          /* nada cresce/estica */
+    .head-actions .small{ white-space:nowrap }   /* “Por página” numa linha só */
+
+    /* Corrige o form-select do Bootstrap (que é 100%) dentro do flex */
+    .head-actions .form-select{
+      width:auto;             /* tira o 100% do BS */
+      min-width:4.6rem;
+      max-width:8rem;
+      height:34px;
+      padding:.2rem 1.8rem .2rem .6rem;
+      font-size:.9rem;
+    }
+
+    .btn-soft{
+      border:0; border-radius:999px; background:rgba(255,255,255,.22);
+      padding:.35rem .7rem; font-weight:600; white-space:nowrap;
+    }
+
+    /* Contadores */
+    .counter{
+      font-weight:800;padding:.25rem .55rem;border-radius:999px;
+      background:rgba(255,255,255,.2);
+      display:inline-flex;align-items:center;gap:.35rem;
+    }
+    .counter .num{font-variant-numeric:tabular-nums}
+    .pulse{position:relative}
+    .pulse::after{
+      content:"";position:absolute;inset:-6px;border-radius:999px;opacity:.55;
+      animation:pulse 1.6s ease-out infinite;box-shadow:0 0 0 0 currentColor;
+    }
+    @keyframes pulse{0%{opacity:.55;transform:scale(.9)}70%{opacity:0;transform:scale(1.35)}100%{opacity:0}}
+
+    /* Cores */
+    .abertos{background:#2f66ff;color:#fff}
+    .andamento{background:#f2d270;color:#2b2b2b}
+    .suspensos{background:#7e0010;color:#fff}
+    .concluidos{background:#0aa39a;color:#fff}
+    .cancelados{background:#343a40;color:#fff}
+
+    .section-body{padding:0}
+    .table td,.table th{vertical-align:middle}
+
+    /* Linha clicável (desktop) */
+    .js-rowlink{ cursor:pointer; }
+    .js-rowlink a, .js-rowlink button{ cursor:default; }
+
+    /* NUNCA normalizar o badge de novas msgs (id m-new-*) */
+    .badge-new{ font-variant-numeric: tabular-nums; }
+    .badge-new.badge-dot{
+      width:.6rem;height:.6rem;padding:0!important;border-radius:9999px;
+      display:inline-block;line-height:.6rem;vertical-align:middle;
+    }
+
+    /* Normalização APENAS p/ badges de STATUS */
+    .section-head .badge:not([id^="m-new-"]),
+    .section-body .badge:not([id^="m-new-"]),
+    .glass .badge:not([id^="m-new-"]){
+      display:inline-flex; align-items:center; white-space:nowrap;
+      line-height:1 !important; font-size:.80rem;
+      padding:.25rem .55rem; border-radius:9999px; vertical-align:middle;
+    }
+
+    /* Texto comprido nunca vaza */
+    .text-break, .break-anywhere{ word-break:break-word; overflow-wrap:anywhere; }
+    .glass .small{ overflow-wrap:anywhere; word-break:break-word; }
+
+    /* Anti “balão” no header do card (mobile) */
+    .glass .d-flex.justify-content-between{ align-items:center; }
+    .glass .d-flex.justify-content-between .badge:not([id^="m-new-"]){ align-self:center; }
+
+    /* ===== MOBILE FIX: alinhar e impedir que o botão "fuja" ===== */
+    @media (max-width:576px){
+      .section-head{
+        padding:.48rem .6rem;
+        min-height:40px;
+        gap:.4rem;
+        overflow:hidden;               /* evita overflow horizontal */
+      }
+
+      /* Deixa o título encolher com reticências */
+      .section-head h3{
+        flex:1 1 auto; min-width:0;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      }
+
+      /* Esconde o “+X novo(s)” dentro do contador para ganhar espaço */
+      .counter small{ display:none !important; }
+
+      .head-actions{
+        margin-left:.35rem;   /* um respiro entre título e ações */
+        gap:.28rem;
+        min-width:0;
+      }
+
+      /* esconde o texto "Por página" no mobile */
+      .head-actions .small{ display:none !important; }
+
+      /* select compacto e com largura fixa */
+      .head-actions .form-select{
+        width:3.9rem; min-width:3.9rem; max-width:3.9rem;
+        height:28px;
+        font-size:.84rem;
+        padding:.1rem .95rem .1rem .42rem;
+      }
+
+      /* botão com a MESMA altura do select e centralização perfeita */
+      .head-actions .btn-soft{
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:.32rem;
+        height:28px;
+        line-height:1;
+        padding:0 .5rem;
+        font-size:.84rem;
+        border-radius:999px;
+      }
+
+      /* em aparelhos MUITO estreitos, esconda o texto do botão */
+      @media (max-width:380px){
+        .head-actions .btn-soft span{ display:none; }     /* só o ícone */
+      }
+
+      /* status pills um pouco menores */
+      .section-head .badge:not([id^="m-new-"]),
+      .section-body .badge:not([id^="m-new-"]),
+      .glass .badge:not([id^="m-new-"]){
+        font-size:.78rem; padding:.20rem .48rem;
+      }
+    }
+
+
+    </style>
+
+
+  <!-- Título + CTA -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h5 m-0">Meus Chamados</h1>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNova">+ Nova Solicitação</button>
+  </div>
+
+  <!-- Chips resumo -->
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <span class="badge rounded-pill bg-primary">Abertos {{ counts.abertos }}</span>
+    <span class="badge rounded-pill bg-warning text-dark">Em andamento {{ counts.andamento }}</span>
+    <span class="badge rounded-pill bg-danger">Suspensos {{ counts.suspensos }}</span>
+    <span class="badge rounded-pill bg-success">Concluídos {{ counts.concluidos }}</span>
+    <span class="badge rounded-pill bg-dark">Cancelados {{ counts.cancelados }}</span>
+  </div>
+
+  <!-- ===================== QUADRANTE SUPERIOR ===================== -->
+  <h2 class="quad-title">Chamados Ativos</h2>
+
+  {# ========= Abertos ========= #}
+  <div class="glass mb-3">
+    <div class="section-head abertos" id="headAbertos">
+      <svg class="toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+      <h3>Abertos</h3>
+      <span class="counter">
+        <span class="num {% if novos.abertos %}pulse{% endif %}">{{ counts.abertos }}</span>
+        {% if novos.abertos %}<small class="opacity-75">+{{ novos.abertos }} novo(s)</small>{% endif %}
+      </span>
+      <div class="head-actions">
+        <span class="small opacity-75 d-none d-sm-inline">Por página</span>
+        <select class="form-select form-select-sm"
+                onchange="location.href='?{% if qs_a %}{{ qs_a }}&{% endif %}ps_a='+this.value">
+          <option value="6"  {% if ps_a == 6 %}selected{% endif %}>6</option>
+          <option value="10" {% if ps_a == 10 %}selected{% endif %}>10</option>
+          <option value="15" {% if ps_a == 15 %}selected{% endif %}>15</option>
+          <option value="20" {% if ps_a == 20 %}selected{% endif %}>20</option>
+        </select>
+        <button class="btn btn-soft btn-sm collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#secAbertos" aria-expanded="false">
+          <span class="me-1">Ver mais</span>
+          <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="secAbertos" class="collapse section-body" data-section-key="secAbertos">
+      <!-- DESKTOP -->
+      <div class="d-none d-md-block">
+        <div class="table-responsive">
+          <table class="table table-sm table-striped table-hover align-middle mb-0">
+            <thead class="table-light">
+            <tr>
+              <th style="width:90px">#</th>
+              <th>Tipo</th>
+              <th>Status</th>
+              <th>Tratativa</th>
+              <th style="width:180px">Criado em</th>
+              <th style="width:200px">Anexos</th>
+              <th style="width:120px" class="text-end">Gerenciar</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for c in abertos %}
+              <tr class="js-rowlink" data-href="{% url 'solicitacoes:chamado_tratativa' c.id %}" data-chamado-id="{{ c.id }}">
+                <td>
+                  <div class="d-flex align-items-center gap-1">
+                    <span>{{ c.id }}</span>
+                    <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+                  </div>
+                </td>
+                <td>{{ c.tipo.nome }}</td>
+                <td><span class="badge bg-primary">Aberto</span></td>
+                <td class="text-break">{{ c.tratativa_adm|default:"—"|truncatechars:120 }}</td>
+                <td>{{ c.criado_em|date:"d/m/Y H:i" }}</td>
+                <td>
+                  <div class="d-flex flex-wrap gap-1">
+                    {% if c.anexo_adm %}
+                      <a href="{{ c.anexo_adm.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="Anexo da tratativa (adm)">📎 ADM</a>
+                    {% endif %}
+                    {% for r in c.respostas.all %}
+                      {% if r.valor_arquivo %}
+                        <a href="{{ r.valor_arquivo.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="{{ r.pergunta.texto }}">📎 {{ forloop.counter }}</a>
+                      {% endif %}
+                    {% endfor %}
+                    {% if not c.anexo_adm and not c.respostas.exists %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="text-end">
+                  <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-outline-primary btn-sm">Ver</a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="text-muted text-center">Você não tem chamados abertos.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- MOBILE -->
+      <div class="d-md-none p-2">
+        {% for c in abertos %}
+          <div class="glass p-2 mb-2" data-chamado-id="{{ c.id }}">
+            <div class="d-flex justify-content-between">
+              <div class="fw-semibold">{{ c.tipo.nome }}</div>
+              <span class="badge rounded-pill bg-primary">Aberto</span>
+            </div>
+            <div class="small text-muted mt-1">
+              #{{ c.id }}
+              <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+              • {{ c.criado_em|date:"d/m/Y H:i" }}
+            </div>
+            {% if c.tratativa_adm %}<div class="small mt-1 text-break"><span class="text-muted">Tratativa:</span> {{ c.tratativa_adm|truncatechars:90 }}</div>{% endif %}
+            {% if c.anexo_adm or c.respostas.exists %}
+              <div class="small mt-2">
+                <span class="text-muted">Anexos:</span>
+                {% if c.anexo_adm %}
+                  <a href="{{ c.anexo_adm.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 ADM</a>
+                {% endif %}
+                {% for r in c.respostas.all %}
+                  {% if r.valor_arquivo %}
+                    <a href="{{ r.valor_arquivo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 {{ forloop.counter }}</a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="mt-2">
+              <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-primary btn-sm w-100">Ver detalhes</a>
+            </div>
+          </div>
+        {% empty %}
+          <div class="p-3 text-center text-muted small">Você não tem chamados abertos.</div>
+        {% endfor %}
+      </div>
+
+      {% if abertos.paginator and abertos.paginator.num_pages > 1 %}
+      <div class="px-3 py-2">
+        <nav aria-label="Paginação — Abertos">
+          <ul class="pagination pagination-sm mb-0">
+            {% if abertos.has_previous %}
+              <li class="page-item"><a class="page-link" href="{% if qs_a %}?{{ qs_a }}&pg_a={{ abertos.previous_page_number }}{% else %}?pg_a={{ abertos.previous_page_number }}{% endif %}">«</a></li>
+            {% endif %}
+            {% for i in abertos.paginator.page_range %}
+              <li class="page-item {% if abertos.number == i %}active{% endif %}">
+                <a class="page-link" href="{% if qs_a %}?{{ qs_a }}&pg_a={{ i }}{% else %}?pg_a={{ i }}{% endif %}">{{ i }}</a>
+              </li>
+            {% endfor %}
+            {% if abertos.has_next %}
+              <li class="page-item"><a class="page-link" href="{% if qs_a %}?{{ qs_a }}&pg_a={{ abertos.next_page_number }}{% else %}?pg_a={{ abertos.next_page_number }}{% endif %}">»</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ========= Em andamento ========= #}
+  <div class="glass mb-3">
+    <div class="section-head andamento" id="headAnd">
+      <svg class="toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+      <h3>Em andamento</h3>
+      <span class="counter">
+        <span class="num {% if novos.andamento %}pulse{% endif %}">{{ counts.andamento }}</span>
+        {% if novos.andamento %}<small class="opacity-75">+{{ novos.andamento }} novo(s)</small>{% endif %}
+      </span>
+      <div class="head-actions">
+        <span class="small opacity-75 d-none d-sm-inline">Por página</span>
+        <select class="form-select form-select-sm" onchange="location.href='?{% if qs_and %}{{ qs_and }}&{% endif %}ps_and='+this.value">
+          <option value="2"  {% if ps_and == 2 %}selected{% endif %}>2</option>
+          <option value="5"  {% if ps_and == 5 %}selected{% endif %}>5</option>
+          <option value="10" {% if ps_and == 10 %}selected{% endif %}>10</option>
+          <option value="15" {% if ps_and == 15 %}selected{% endif %}>15</option>
+          <option value="20" {% if ps_and == 20 %}selected{% endif %}>20</option>
+        </select>
+        <button class="btn btn-soft btn-sm collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#secAnd" aria-expanded="false">
+          <span class="me-1">Ver mais</span>
+          <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="secAnd" class="collapse section-body" data-section-key="secAnd">
+      <!-- Desktop -->
+      <div class="d-none d-md-block">
+        <div class="table-responsive">
+          <table class="table table-sm table-striped table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:90px">#</th>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th>Tratativa</th>
+                <th style="width:180px">Criado em</th>
+                <th style="width:200px">Anexos</th>
+                <th style="width:120px" class="text-end">Gerenciar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in andamento %}
+              <tr class="js-rowlink" data-href="{% url 'solicitacoes:chamado_tratativa' c.id %}" data-chamado-id="{{ c.id }}">
+                <td>
+                  <div class="d-flex align-items-center gap-1">
+                    <span>{{ c.id }}</span>
+                    <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+                  </div>
+                </td>
+                <td>{{ c.tipo.nome }}</td>
+                <td><span class="badge bg-warning text-dark">Em andamento</span></td>
+                <td class="text-break">{{ c.tratativa_adm|default:"—"|truncatechars:120 }}</td>
+                <td>{{ c.criado_em|date:"d/m/Y H:i" }}</td>
+                <td>
+                  <div class="d-flex flex-wrap gap-1">
+                    {% if c.anexo_adm %}
+                      <a href="{{ c.anexo_adm.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="Anexo da tratativa (adm)">📎 ADM</a>
+                    {% endif %}
+                    {% for r in c.respostas.all %}
+                      {% if r.valor_arquivo %}
+                        <a href="{{ r.valor_arquivo.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="{{ r.pergunta.texto }}">📎 {{ forloop.counter }}</a>
+                      {% endif %}
+                    {% endfor %}
+                    {% if not c.anexo_adm and not c.respostas.exists %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="text-end">
+                  <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-outline-primary btn-sm">Ver</a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="text-muted text-center">Você não tem chamados em andamento.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Mobile -->
+      <div class="d-md-none p-2">
+        {% for c in andamento %}
+          <div class="glass p-2 mb-2" data-chamado-id="{{ c.id }}">
+            <div class="d-flex justify-content-between">
+              <div class="fw-semibold">{{ c.tipo.nome }}</div>
+              <span class="badge rounded-pill bg-warning text-dark">Em andamento</span>
+            </div>
+            <div class="small text-muted mt-1">
+              #{{ c.id }}
+              <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+              • {{ c.criado_em|date:"d/m/Y H:i" }}
+            </div>
+            {% if c.tratativa_adm %}<div class="small mt-1 text-break"><span class="text-muted">Tratativa:</span> {{ c.tratativa_adm|truncatechars:90 }}</div>{% endif %}
+            {% if c.anexo_adm or c.respostas.exists %}
+              <div class="small mt-2">
+                <span class="text-muted">Anexos:</span>
+                {% if c.anexo_adm %}
+                  <a href="{{ c.anexo_adm.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 ADM</a>
+                {% endif %}
+                {% for r in c.respostas.all %}
+                  {% if r.valor_arquivo %}
+                    <a href="{{ r.valor_arquivo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 {{ forloop.counter }}</a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="mt-2">
+              <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-primary btn-sm w-100">Ver detalhes</a>
+            </div>
+          </div>
+        {% empty %}
+          <div class="p-3 text-center text-muted small">Você não tem chamados em andamento.</div>
+        {% endfor %}
+      </div>
+
+      {% if andamento.paginator and andamento.paginator.num_pages > 1 %}
+      <div class="px-3 py-2">
+        <nav aria-label="Paginação — Em andamento">
+          <ul class="pagination pagination-sm mb-0">
+            {% if andamento.has_previous %}
+              <li class="page-item"><a class="page-link" href="{% if qs_and %}?{{ qs_and }}&pg_and={{ andamento.previous_page_number }}{% else %}?pg_and={{ andamento.previous_page_number }}{% endif %}">«</a></li>
+            {% endif %}
+            {% for i in andamento.paginator.page_range %}
+              <li class="page-item {% if andamento.number == i %}active{% endif %}">
+                <a class="page-link" href="{% if qs_and %}?{{ qs_and }}&pg_and={{ i }}{% else %}?pg_and={{ i }}{% endif %}">{{ i }}</a>
+              </li>
+            {% endfor %}
+            {% if andamento.has_next %}
+              <li class="page-item"><a class="page-link" href="{% if qs_and %}?{{ qs_and }}&pg_and={{ andamento.next_page_number }}{% else %}?pg_and={{ andamento.next_page_number }}{% endif %}">»</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ===================== QUADRANTE INFERIOR ===================== -->
+  <h2 class="quad-title">Histórico</h2>
+
+  {# ========= Suspensos ========= #}
+  <div class="glass mb-5">
+    <div class="section-head suspensos" id="headSus">
+      <svg class="toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+      <h3>Suspensos</h3>
+      <span class="counter">
+        <span class="num {% if novos.suspensos %}pulse{% endif %}">{{ counts.suspensos }}</span>
+        {% if novos.suspensos %}<small class="opacity-75">+{{ novos.suspensos }} novo(s)</small>{% endif %}
+      </span>
+      <div class="head-actions">
+        <span class="small opacity-75 d-none d-sm-inline">Por página</span>
+        <select class="form-select form-select-sm" onchange="location.href='?{% if qs_sus %}{{ qs_sus }}&{% endif %}ps_sus='+this.value">
+          <option value="2"  {% if ps_sus == 2 %}selected{% endif %}>2</option>
+          <option value="5"  {% if ps_sus == 5 %}selected{% endif %}>5</option>
+          <option value="10" {% if ps_sus == 10 %}selected{% endif %}>10</option>
+          <option value="15" {% if ps_sus == 15 %}selected{% endif %}>15</option>
+          <option value="20" {% if ps_sus == 20 %}selected{% endif %}>20</option>
+        </select>
+        <button class="btn btn-soft btn-sm collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#secSus" aria-expanded="false">
+          <span class="me-1">Ver mais</span>
+          <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="secSus" class="collapse section-body" data-section-key="secSus">
+      <!-- Desktop -->
+      <div class="d-none d-md-block">
+        <div class="table-responsive">
+          <table class="table table-sm table-striped table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:90px">#</th>
+                <th>Tipo</th>
+                <th>Desde</th>
+                <th>Tratativa</th>
+                <th style="width:200px">Anexos</th>
+                <th style="width:180px" class="text-end">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in suspensos %}
+              <tr class="js-rowlink" data-href="{% url 'solicitacoes:chamado_tratativa' c.id %}" data-chamado-id="{{ c.id }}">
+                <td>
+                  <div class="d-flex align-items-center gap-1">
+                    <span>{{ c.id }}</span>
+                    <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+                  </div>
+                </td>
+                <td>{{ c.tipo.nome }}</td>
+                <td>{{ c.suspenso_em|date:"d/m/Y H:i"|default:"—" }}</td>
+                <td class="text-break">{{ c.tratativa_adm|default:"—"|truncatechars:120 }}</td>
+                <td>
+                  <div class="d-flex flex-wrap gap-1">
+                    {% if c.anexo_adm %}
+                      <a href="{{ c.anexo_adm.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="Anexo da tratativa (adm)">📎 ADM</a>
+                    {% endif %}
+                    {% for r in c.respostas.all %}
+                      {% if r.valor_arquivo %}
+                        <a href="{{ r.valor_arquivo.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="{{ r.pergunta.texto }}">📎 {{ forloop.counter }}</a>
+                      {% endif %}
+                    {% endfor %}
+                    {% if not c.anexo_adm and not c.respostas.exists %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="text-end">
+                  <div class="d-flex gap-2 justify-content-end">
+                    <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-outline-primary btn-sm">Ver</a>
+                    <form method="post" action="{% url 'solicitacoes:reabrir_chamado' c.id %}" class="d-inline">
+                      {% csrf_token %}
+                      <button class="btn btn-sm btn-outline-success">Reabrir</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6" class="text-muted text-center">Você não tem chamados suspensos.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Mobile -->
+      <div class="d-md-none p-2">
+        {% for c in suspensos %}
+          <div class="glass p-2 mb-2" data-chamado-id="{{ c.id }}">
+            <div class="d-flex justify-content-between">
+              <div class="fw-semibold">{{ c.tipo.nome }}</div>
+              <span class="badge rounded-pill bg-danger">Suspenso</span>
+            </div>
+            <div class="small text-muted mt-1">
+              #{{ c.id }}
+              <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+              • Desde {{ c.suspenso_em|date:"d/m/Y H:i"|default:"—" }}
+            </div>
+            {% if c.tratativa_adm %}<div class="small mt-1 text-break"><span class="text-muted">Tratativa:</span> {{ c.tratativa_adm|truncatechars:90 }}</div>{% endif %}
+            {% if c.anexo_adm or c.respostas.exists %}
+              <div class="small mt-2">
+                <span class="text-muted">Anexos:</span>
+                {% if c.anexo_adm %}
+                  <a href="{{ c.anexo_adm.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 ADM</a>
+                {% endif %}
+                {% for r in c.respostas.all %}
+                  {% if r.valor_arquivo %}
+                    <a href="{{ r.valor_arquivo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 {{ forloop.counter }}</a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="d-grid gap-2 mt-2">
+              <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-primary btn-sm">Ver detalhes</a>
+              <form method="post" action="{% url 'solicitacoes:reabrir_chamado' c.id %}">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-success w-100">Reabrir</button>
+              </form>
+            </div>
+          </div>
+        {% empty %}
+          <div class="p-3 text-center text-muted small">Você não tem chamados suspensos.</div>
+        {% endfor %}
+      </div>
+
+      <div class="px-3 py-2 text-muted small">Você pode reabrir em até 5 dias após a suspensão.</div>
+
+      {% if suspensos.paginator and suspensos.paginator.num_pages > 1 %}
+      <div class="px-3 pb-2">
+        <nav aria-label="Paginação — Suspensos">
+          <ul class="pagination pagination-sm mb-0">
+            {% if suspensos.has_previous %}
+              <li class="page-item"><a class="page-link" href="{% if qs_sus %}?{{ qs_sus }}&pg_sus={{ suspensos.previous_page_number }}{% else %}?pg_sus={{ suspensos.previous_page_number }}{% endif %}">«</a></li>
+            {% endif %}
+            {% for i in suspensos.paginator.page_range %}
+              <li class="page-item {% if suspensos.number == i %}active{% endif %}">
+                <a class="page-link" href="{% if qs_sus %}?{{ qs_sus }}&pg_sus={{ i }}{% else %}?pg_sus={{ i }}{% endif %}">{{ i }}</a>
+              </li>
+            {% endfor %}
+            {% if suspensos.has_next %}
+              <li class="page-item"><a class="page-link" href="{% if qs_sus %}?{{ qs_sus }}&pg_sus={{ suspensos.next_page_number }}{% else %}?pg_sus={{ suspensos.next_page_number }}{% endif %}">»</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ========= Concluídos ========= #}
+  <div class="glass mb-3">
+    <div class="section-head concluidos" id="headCon">
+      <svg class="toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+      <h3>Concluídos</h3>
+      <span class="counter">
+        <span class="num {% if novos.concluidos %}pulse{% endif %}">{{ counts.concluidos }}</span>
+        {% if novos.concluidos %}<small class="opacity-75">+{{ novos.concluidos }} novo(s)</small>{% endif %}
+      </span>
+      <div class="head-actions">
+        <span class="small opacity-75 d-none d-sm-inline">Por página</span>
+        <select class="form-select form-select-sm" onchange="location.href='?{% if qs_con %}{{ qs_con }}&{% endif %}ps_con='+this.value">
+          <option value="2"  {% if ps_con == 2 %}selected{% endif %}>2</option>
+          <option value="5"  {% if ps_con == 5 %}selected{% endif %}>5</option>
+          <option value="10" {% if ps_con == 10 %}selected{% endif %}>10</option>
+          <option value="15" {% if ps_con == 15 %}selected{% endif %}>15</option>
+          <option value="20" {% if ps_con == 20 %}selected{% endif %}>20</option>
+        </select>
+        <button class="btn btn-soft btn-sm collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#secCon" aria-expanded="false">
+          <span class="me-1">Ver mais</span>
+          <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="secCon" class="collapse section-body" data-section-key="secCon">
+      <!-- Desktop -->
+      <div class="d-none d-md-block">
+        <div class="table-responsive">
+          <table class="table table-sm table-striped table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:90px">#</th>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th>Tratativa</th>
+                <th style="width:180px">Criado em</th>
+                <th style="width:200px">Anexos</th>
+                <th style="width:120px" class="text-end">Gerenciar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in concluidos %}
+              <tr class="js-rowlink" data-href="{% url 'solicitacoes:chamado_tratativa' c.id %}" data-chamado-id="{{ c.id }}">
+                <td>
+                  <div class="d-flex align-items-center gap-1">
+                    <span>{{ c.id }}</span>
+                    <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+                  </div>
+                </td>
+                <td>{{ c.tipo.nome }}</td>
+                <td><span class="badge bg-success">Concluído</span></td>
+                <td class="text-break">{{ c.tratativa_adm|default:"—"|truncatechars:120 }}</td>
+                <td>{{ c.criado_em|date:"d/m/Y H:i" }}</td>
+                <td>
+                  <div class="d-flex flex-wrap gap-1">
+                    {% if c.anexo_adm %}
+                      <a href="{{ c.anexo_adm.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="Anexo da tratativa (adm)">📎 ADM</a>
+                    {% endif %}
+                    {% for r in c.respostas.all %}
+                      {% if r.valor_arquivo %}
+                        <a href="{{ r.valor_arquivo.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="{{ r.pergunta.texto }}">📎 {{ forloop.counter }}</a>
+                      {% endif %}
+                    {% endfor %}
+                    {% if not c.anexo_adm and not c.respostas.exists %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="text-end">
+                  <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-outline-primary btn-sm">Ver</a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="text-muted text-center">Você não tem chamados concluídos.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Mobile -->
+      <div class="d-md-none p-2">
+        {% for c in concluidos %}
+          <div class="glass p-2 mb-2" data-chamado-id="{{ c.id }}">
+            <div class="d-flex justify-content-between">
+              <div class="fw-semibold">{{ c.tipo.nome }}</div>
+              <span class="badge rounded-pill bg-success">Concluído</span>
+            </div>
+            <div class="small text-muted mt-1">
+              #{{ c.id }}
+              <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+              • {{ c.criado_em|date:"d/m/Y H:i" }}
+            </div>
+            {% if c.tratativa_adm %}<div class="small mt-1 text-break"><span class="text-muted">Tratativa:</span> {{ c.tratativa_adm|truncatechars:90 }}</div>{% endif %}
+            {% if c.anexo_adm or c.respostas.exists %}
+              <div class="small mt-2">
+                <span class="text-muted">Anexos:</span>
+                {% if c.anexo_adm %}
+                  <a href="{{ c.anexo_adm.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 ADM</a>
+                {% endif %}
+                {% for r in c.respostas.all %}
+                  {% if r.valor_arquivo %}
+                    <a href="{{ r.valor_arquivo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 {{ forloop.counter }}</a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="mt-2">
+              <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-primary btn-sm w-100">Ver detalhes</a>
+            </div>
+          </div>
+        {% empty %}
+          <div class="p-3 text-center text-muted small">Você não tem chamados concluídos.</div>
+        {% endfor %}
+      </div>
+
+      {% if concluidos.paginator and concluidos.paginator.num_pages > 1 %}
+      <div class="px-3 py-2">
+        <nav aria-label="Paginação — Concluídos">
+          <ul class="pagination pagination-sm mb-0">
+            {% if concluidos.has_previous %}
+              <li class="page-item"><a class="page-link" href="{% if qs_con %}?{{ qs_con }}&pg_con={{ concluidos.previous_page_number }}{% else %}?pg_con={{ concluidos.previous_page_number }}{% endif %}">«</a></li>
+            {% endif %}
+            {% for i in concluidos.paginator.page_range %}
+              <li class="page-item {% if concluidos.number == i %}active{% endif %}">
+                <a class="page-link" href="{% if qs_con %}?{{ qs_con }}&pg_con={{ i }}{% else %}?pg_con={{ i }}{% endif %}">{{ i }}</a>
+              </li>
+            {% endfor %}
+            {% if concluidos.has_next %}
+              <li class="page-item"><a class="page-link" href="{% if qs_con %}?{{ qs_con }}&pg_con={{ concluidos.next_page_number }}{% else %}?pg_con={{ concluidos.next_page_number }}{% endif %}">»</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ========= Cancelados ========= #}
+  <div class="glass">
+    <div class="section-head cancelados" id="headCan">
+      <svg class="toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+      <h3>Cancelados</h3>
+      <span class="counter">
+        <span class="num {% if novos.cancelados %}pulse{% endif %}">{{ counts.cancelados }}</span>
+        {% if novos.cancelados %}<small class="opacity-75">+{{ novos.cancelados }} novo(s)</small>{% endif %}
+      </span>
+      <div class="head-actions">
+        <span class="small opacity-75 d-none d-sm-inline">Por página</span>
+        <select class="form-select form-select-sm" onchange="location.href='?{% if qs_can %}{{ qs_can }}&{% endif %}ps_can='+this.value">
+          <option value="2"  {% if ps_can == 2 %}selected{% endif %}>2</option>
+          <option value="5"  {% if ps_can == 5 %}selected{% endif %}>5</option>
+          <option value="10" {% if ps_can == 10 %}selected{% endif %}>10</option>
+          <option value="15" {% if ps_can == 15 %}selected{% endif %}>15</option>
+          <option value="20" {% if ps_can == 20 %}selected{% endif %}>20</option>
+        </select>
+        <button class="btn btn-soft btn-sm collapsed" type="button"
+                data-bs-toggle="collapse" data-bs-target="#secCan" aria-expanded="false">
+          <span class="me-1">Ver mais</span>
+          <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="secCan" class="collapse section-body" data-section-key="secCan">
+      <!-- Desktop -->
+      <div class="d-none d-md-block">
+        <div class="table-responsive">
+          <table class="table table-sm table-striped table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:90px">#</th>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th>Tratativa</th>
+                <th style="width:180px">Criado em</th>
+                <th style="width:200px">Anexos</th>
+                <th style="width:120px" class="text-end">Gerenciar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in cancelados %}
+              <tr class="js-rowlink" data-href="{% url 'solicitacoes:chamado_tratativa' c.id %}" data-chamado-id="{{ c.id }}">
+                <td>
+                  <div class="d-flex align-items-center gap-1">
+                    <span>{{ c.id }}</span>
+                    <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+                  </div>
+                </td>
+                <td>{{ c.tipo.nome }}</td>
+                <td><span class="badge bg-dark">Cancelado</span></td>
+                <td class="text-break">{{ c.tratativa_adm|default:"—"|truncatechars:120 }}</td>
+                <td>{{ c.criado_em|date:"d/m/Y H:i" }}</td>
+                <td>
+                  <div class="d-flex flex-wrap gap-1">
+                    {% if c.anexo_adm %}
+                      <a href="{{ c.anexo_adm.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="Anexo da tratativa (adm)">📎 ADM</a>
+                    {% endif %}
+                    {% for r in c.respostas.all %}
+                      {% if r.valor_arquivo %}
+                        <a href="{{ r.valor_arquivo.url }}" class="btn btn-outline-secondary btn-sm" target="_blank" title="{{ r.pergunta.texto }}">📎 {{ forloop.counter }}</a>
+                      {% endif %}
+                    {% endfor %}
+                    {% if not c.anexo_adm and not c.respostas.exists %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="text-end">
+                  <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-outline-primary btn-sm">Ver</a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="text-muted text-center">Você não tem chamados cancelados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Mobile -->
+      <div class="d-md-none p-2">
+        {% for c in cancelados %}
+          <div class="glass p-2 mb-2" data-chamado-id="{{ c.id }}">
+            <div class="d-flex justify-content-between">
+              <div class="fw-semibold">{{ c.tipo.nome }}</div>
+              <span class="badge rounded-pill bg-dark">Cancelado</span>
+            </div>
+            <div class="small text-muted mt-1">
+              #{{ c.id }}
+              <span class="badge bg-danger rounded-pill d-none" id="m-new-{{ c.id }}" title="Novas mensagens"></span>
+              • {{ c.criado_em|date:"d/m/Y H:i" }}
+            </div>
+            {% if c.tratativa_adm %}<div class="small mt-1 text-break"><span class="text-muted">Tratativa:</span> {{ c.tratativa_adm|truncatechars:90 }}</div>{% endif %}
+            {% if c.anexo_adm or c.respostas.exists %}
+              <div class="small mt-2">
+                <span class="text-muted">Anexos:</span>
+                {% if c.anexo_adm %}
+                  <a href="{{ c.anexo_adm.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 ADM</a>
+                {% endif %}
+                {% for r in c.respostas.all %}
+                  {% if r.valor_arquivo %}
+                    <a href="{{ r.valor_arquivo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 {{ forloop.counter }}</a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="mt-2">
+              <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-primary btn-sm w-100">Ver detalhes</a>
+            </div>
+          </div>
+        {% empty %}
+          <div class="p-3 text-center text-muted small">Você não tem chamados cancelados.</div>
+        {% endfor %}
+      </div>
+
+      {% if cancelados.paginator and cancelados.paginator.num_pages > 1 %}
+      <div class="px-3 py-2">
+        <nav aria-label="Paginação — Cancelados">
+          <ul class="pagination pagination-sm mb-0">
+            {% if cancelados.has_previous %}
+              <li class="page-item"><a class="page-link" href="{% if qs_can %}?{{ qs_can }}&pg_can={{ cancelados.previous_page_number }}{% else %}?pg_can={{ cancelados.previous_page_number }}{% endif %}">«</a></li>
+            {% endif %}
+            {% for i in cancelados.paginator.page_range %}
+              <li class="page-item {% if cancelados.number == i %}active{% endif %}">
+                <a class="page-link" href="{% if qs_can %}?{{ qs_can }}&pg_can={{ i }}{% else %}?pg_can={{ i }}{% endif %}">{{ i }}</a>
+              </li>
+            {% endfor %}
+            {% if cancelados.has_next %}
+              <li class="page-item"><a class="page-link" href="{% if qs_can %}?{{ qs_can }}&pg_can={{ cancelados.next_page_number }}{% else %}?pg_can={{ cancelados.next_page_number }}{% endif %}">»</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{# ====================== MODAL: NOVA SOLICITAÇÃO ====================== #}
+<div class="modal fade" id="modalNova" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <form class="modal-content" method="post" action="{% url 'solicitacoes:nova_solicitacao' %}">
+      {% csrf_token %}
+      <div class="modal-header">
+        <h5 class="modal-title">Nova Solicitação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" name="tipo" id="sel-tipo">
+            <option value="">— Selecione —</option>
+            {% for t in form_tipo.fields.tipo.queryset %}
+              <option value="{{ t.id }}" data-url="{% url 'solicitacoes:form_campos_por_tipo' t.id %}">{{ t.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div id="campos-dinamicos"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal" type="button">Fechar</button>
+        <button class="btn btn-primary" type="submit">Enviar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  /* 1) Não mostrar NENHUM dot/badge dentro da TABELA (desktop)  */
+  .table [id^="m-new-"],
+  .table .dot,
+  .table .status-dot,
+  .table .bullet,
+  .table .badge-dot {
+    display: none !important;
+  }
+
+  /* 2) Nosso dot aparece só quando a linha tiver data-has-new="1"  */
+  .table tr[data-has-new="1"] td:first-child { position: relative; }
+  .table tr[data-has-new="1"] td:first-child::after{
+    content: '';
+    position: absolute;
+    left: 28px; top: 50%; transform: translateY(-50%);
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #b40808ff;
+    box-shadow: 0 0 0 2px #fff;
+  }
+</style>
+
+<script>
+(function(){
+  if (window.__MEUS_CHAMADOS_INIT__) return;
+  window.__MEUS_CHAMADOS_INIT__ = true;
+
+  /* ===== CSRF ===== */
+  function getCookie(name){
+    if(!document.cookie) return null;
+    for(const c0 of document.cookie.split(';')){
+      const c=c0.trim(); if(c.startsWith(name+'=')) return decodeURIComponent(c.slice(name.length+1));
+    }
+    return null;
+  }
+  function getCsrfToken(){
+    const cookie = getCookie('csrftoken');
+    if (cookie && cookie.length >= 32) return cookie;
+    const input  = document.querySelector('input[name=csrfmiddlewaretoken]')?.value;
+    if (input && input.length >= 32) return input;
+    const meta   = document.querySelector('meta[name="csrf-token"]')?.content;
+    return (meta && meta.length >= 32) ? meta : null;
+  }
+
+  /* ===== Envio "visto" ===== */
+  const SEEN_URL = "/solicitacoes/meus-chamados/seen/";
+  function sendSeenNow(id){
+    const token = getCsrfToken(); if(!token) return;
+    const bodyStr = new URLSearchParams({ ids:String(id), csrfmiddlewaretoken: token }).toString();
+    if (navigator.sendBeacon){
+      const blob = new Blob([bodyStr], {type:'application/x-www-form-urlencoded; charset=UTF-8'});
+      navigator.sendBeacon(SEEN_URL, blob);
+      return;
+    }
+    fetch(SEEN_URL, {
+      method:"POST", credentials:"same-origin", keepalive:true,
+      headers:{
+        "Content-Type":"application/x-www-form-urlencoded; charset=UTF-8",
+        "X-Requested-With":"XMLHttpRequest",
+        "X-CSRFToken": token
+      },
+      body: bodyStr
+    }).catch(()=>{});
+  }
+
+  /* ===== Campos dinâmicos no modal ===== */
+  (function () {
+    function loadCampos(url) {
+      const box = document.getElementById('campos-dinamicos');
+      if (!box || !url) { if (box) box.innerHTML = ''; return; }
+      fetch(url, {headers: {'X-Requested-With':'XMLHttpRequest'}})
+        .then(r => r.text()).then(html => box.innerHTML = html)
+        .catch(() => box.innerHTML = '<div class="text-muted small">Não foi possível carregar os campos.</div>');
+    }
+    document.addEventListener('change', (ev)=>{
+      const sel = ev.target.closest('#sel-tipo'); if(!sel) return;
+      const opt = sel.selectedOptions[0]; loadCampos(opt?opt.dataset.url:'');
+    });
+    document.getElementById('modalNova')?.addEventListener('shown.bs.modal', ()=>{
+      const sel = document.getElementById('sel-tipo');
+      if (sel && sel.value){ const opt = sel.selectedOptions[0]; loadCampos(opt?opt.dataset.url:''); }
+    });
+  })();
+
+  /* ===== Linha clicável ===== */
+  document.addEventListener('click', (ev) => {
+    const tr = ev.target.closest('.js-rowlink');
+    if (!tr) return;
+    if (ev.target.closest('a,button,form,label,input,select,textarea')) return;
+    const url = tr.getAttribute('data-href'); if (!url) return;
+    const id  = tr.getAttribute('data-chamado-id');
+    if (id){
+      document.querySelectorAll('#m-new-'+id).forEach(b=>{ b.textContent=''; b.classList.add('d-none'); b.classList.remove('badge-dot'); });
+      tr.removeAttribute('data-has-new');
+      sendSeenNow(id);
+    }
+    window.location.href = url;
+  });
+
+  /* ===== Links "Ver" também marcam visto ===== */
+  document.addEventListener('click', (ev)=>{
+    const a   = ev.target.closest('a[href]');
+    const row = ev.target.closest('[data-chamado-id]');
+    if(!a || !row) return;
+    const id = row.getAttribute('data-chamado-id'); if(!id) return;
+    if (a.href.includes('/solicitacoes/chamados/') || /chamado_tratativa/.test(a.href)){
+      document.querySelectorAll('#m-new-'+id).forEach(b=>{ b.textContent=''; b.classList.add('d-none'); b.classList.remove('badge-dot'); });
+      row.removeAttribute('data-has-new');
+      sendSeenNow(id);
+    }
+  });
+
+  /* ===== Memória + indicador de seção aberta no HEADER ===== */
+  (function () {
+    const mapa  = { secAbertos:'abertos', secAnd:'andamento', secSus:'suspensos', secCon:'concluidos', secCan:'cancelados' };
+    const headBySec = { secAbertos:'headAbertos', secAnd:'headAnd', secSus:'headSus', secCon:'headCon', secCan:'headCan' };
+    const jaEnviado = new Set();
+
+    document.querySelectorAll('.collapse.section-body').forEach(function (el) {
+      const key = 'meuschamados:'+el.dataset.sectionKey;
+
+      // Restaura estado salvo
+      if (localStorage.getItem(key) === 'open') { try { new bootstrap.Collapse(el, {toggle:true}); } catch(e){} }
+
+      el.addEventListener('shown.bs.collapse', function(){
+        localStorage.setItem(key,'open');
+        document.getElementById(headBySec[el.id])?.classList.add('expanded');   // chevron da esquerda
+        // tira o pulso do contador
+        document.getElementById(headBySec[el.id])?.querySelector('.num')?.classList.remove('pulse');
+
+        const secao = mapa[el.id];
+        if (!secao || jaEnviado.has(secao)) return;
+        const token = getCsrfToken(); if(!token) return;
+        jaEnviado.add(secao);
+        fetch("{% url 'solicitacoes:marcar_secao_vista' %}", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": token,
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+          },
+          body: new URLSearchParams({secao})
+        }).catch(()=>{});
+      });
+
+      el.addEventListener('hidden.bs.collapse', function(){
+        localStorage.setItem(key,'closed');
+        document.getElementById(headBySec[el.id])?.classList.remove('expanded');
+      });
+    });
+  })();
+
+  /* ===== Poll de novas mensagens ===== */
+  (function(){
+    function idsDaTela(){
+      const s = new Set();
+      document.querySelectorAll('[data-chamado-id]').forEach(el=>{
+        const id = el.getAttribute('data-chamado-id'); if(id) s.add(id);
+      });
+      return Array.from(s);
+    }
+    function setBadge(id, value){
+      let isBool=false, n=0;
+      if (value===true || value==='true' || value===false || value==='false'){
+        isBool = (value===true || value==='true'); n = isBool ? 1 : 0;
+      } else { const p = parseInt(value,10); n = isNaN(p)?0:p; }
+
+      // 1) Bolinha da LINHA (desktop) via atributo:
+      document.querySelectorAll('tr[data-chamado-id="'+id+'"]').forEach(tr=>{
+        if(n>0) tr.dataset.hasNew="1"; else tr.removeAttribute('data-has-new');
+      });
+
+      // 2) Cards (mobile): badge #m-new-ID
+      document.querySelectorAll('#m-new-'+id).forEach(b=>{
+        const emTabela = !!b.closest('table');
+        if (emTabela){ b.textContent=''; b.classList.add('d-none'); b.classList.remove('badge-dot'); return; }
+        b.classList.add('badge-new');
+        if(n>0){
+          if(isBool){ b.textContent=''; b.classList.add('badge-dot'); }
+          else { b.textContent = n>9 ? '9+' : String(n); b.classList.remove('badge-dot'); }
+          b.classList.remove('d-none');
+        }else{
+          b.textContent=''; b.classList.add('d-none'); b.classList.remove('badge-dot');
+        }
+      });
+    }
+
+    async function tick(){
+      const ids = idsDaTela();
+      if(!ids.length) return;
+      const qs = new URLSearchParams({ids: ids.join(',')});
+      try{
+        const r = await fetch("{% url 'solicitacoes:api_novas_mensagens' %}?"+qs, {credentials:'same-origin'});
+        if(!r.ok) return;
+        const data = await r.json(); // {"10": false, "8": 0, ...}
+        ids.forEach(id => setBadge(id, (data[id] ?? 0)));
+      }catch(_e){}
+    }
+
+    window.addEventListener('pageshow', tick);
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) tick(); });
+    window.addEventListener('focus', tick);
+    document.addEventListener('DOMContentLoaded', ()=>{ tick(); setInterval(tick, 25000); });
+  })();
+})();
+</script>
+{% endblock %}

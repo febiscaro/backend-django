@@ -1,0 +1,60 @@
+/* Paleta/acento */
+:root {
+  --rt-accent: #6c5ce7;
+  --rt-accent-2: #a29bfe;
+}
+
+/* Cards “tech” */
+.card-tech {
+  border: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.05));
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.08);
+}
+
+/* Barra de ações fixa */
+.action-bar {
+  position: sticky;
+  top: 64px; /* abaixo da navbar */
+  z-index: 100;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  background: rgba(20,20,22,.75);
+  backdrop-filter: blur(10px);
+}
+
+/* Botões com vibe neon leve */
+.btn-accent {
+  background: var(--rt-accent);
+  border-color: var(--rt-accent);
+}
+.btn-accent:hover {
+  background: #5b4ae0;
+  border-color: #5b4ae0;
+}
+.btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.15);
+}
+.btn-ghost:hover {
+  border-color: rgba(255,255,255,.3);
+}
+
+/* Itens do checklist */
+.list-item {
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+}
+.list-item:hover {
+  border-color: var(--rt-accent-2);
+  box-shadow: 0 6px 14px rgba(108,92,231,.12);
+}
+
+/* Badges */
+.badge-accent { background: var(--rt-accent-2); }
+
+/* Mensagens (django messages) */
+.alert {
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+}

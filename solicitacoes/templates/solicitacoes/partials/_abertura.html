@@ -1,0 +1,22 @@
+{# NÃO estenda base.html aqui #}
+<div class="vstack gap-2">
+  <div class="small text-muted">
+    #{{ chamado.id }} • {{ chamado.tipo.nome }} •
+    Criado em {{ chamado.criado_em|date:"d/m/Y H:i" }} •
+    Solicitante: {{ chamado.solicitante }}
+  </div>
+
+  {% for r in respostas %}
+    <div>
+      <div class="fw-semibold">{{ r.pergunta.texto }}</div>
+      {% if r.valor_texto %}
+        <div class="text-break">{{ r.valor_texto|linebreaksbr }}</div>
+      {% endif %}
+      {% if r.valor_arquivo %}
+        <div><a href="{{ r.valor_arquivo.url }}" target="_blank">Baixar anexo</a></div>
+      {% endif %}
+    </div>
+  {% empty %}
+    <div class="text-muted">Sem respostas na abertura.</div>
+  {% endfor %}
+</div>

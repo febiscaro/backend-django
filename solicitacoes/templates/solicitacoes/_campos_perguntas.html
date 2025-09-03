@@ -1,0 +1,45 @@
+{% for p in perguntas %}
+  <div class="mb-3">
+    <label class="form-label">{{ p.texto }}{% if p.obrigatoria %} *{% endif %}</label>
+
+    {% if p.tipo_campo == 'text' %}
+      <input type="text" name="pergunta_{{ p.id }}" class="form-control" {% if p.obrigatoria %}required{% endif %} placeholder="{{ p.ajuda }}">
+    {% elif p.tipo_campo == 'textarea' %}
+      <textarea name="pergunta_{{ p.id }}" rows="3" class="form-control" {% if p.obrigatoria %}required{% endif %} placeholder="{{ p.ajuda }}"></textarea>
+    {% elif p.tipo_campo == 'int' %}
+      <input type="number" step="1" name="pergunta_{{ p.id }}" class="form-control" {% if p.obrigatoria %}required{% endif %} placeholder="{{ p.ajuda }}">
+    {% elif p.tipo_campo == 'decimal' %}
+      <input type="number" step="0.01" name="pergunta_{{ p.id }}" class="form-control" {% if p.obrigatoria %}required{% endif %} placeholder="{{ p.ajuda }}">
+    {% elif p.tipo_campo == 'date' %}
+      <input type="date" name="pergunta_{{ p.id }}" class="form-control" {% if p.obrigatoria %}required{% endif %}>
+    {% elif p.tipo_campo == 'datetime' %}
+      <input type="datetime-local" name="pergunta_{{ p.id }}" class="form-control" {% if p.obrigatoria %}required{% endif %}>
+    {% elif p.tipo_campo == 'bool' %}
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="pergunta_{{ p.id }}" value="true" id="p{{ p.id }}">
+        <label class="form-check-label" for="p{{ p.id }}">{{ p.ajuda }}</label>
+      </div>
+    {% elif p.tipo_campo == 'choice' %}
+      <select name="pergunta_{{ p.id }}" class="form-select" {% if p.obrigatoria %}required{% endif %}>
+        <option value="">— selecione —</option>
+        {% for opt in p.opcoes_lista %}
+          <option value="{{ opt }}">{{ opt }}</option>
+        {% endfor %}
+      </select>
+    {% elif p.tipo_campo == 'multichoice' %}
+      {% for opt in p.opcoes_lista %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="pergunta_{{ p.id }}" value="{{ opt }}" id="p{{ p.id }}_{{ forloop.counter }}">
+          <label class="form-check-label" for="p{{ p.id }}_{{ forloop.counter }}">{{ opt }}</label>
+        </div>
+      {% endfor %}
+      {% if p.ajuda %}<small class="text-muted d-block">{{ p.ajuda }}</small>{% endif %}
+    {% elif p.tipo_campo == 'file' %}
+      <input type="file" name="pergunta_{{ p.id }}_file" class="form-control" {% if p.obrigatoria %}required{% endif %}>
+      {% if p.ajuda %}<small class="text-muted d-block">{{ p.ajuda }}</small>{% endif %}
+    {% endif %}
+  </div>
+{% empty %}
+  <div class="text-muted">Este tipo não possui perguntas ativas.</div>
+{% endfor %}
+<input type="hidden" name="tipo" value="{{ tipo.id }}">

@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4">
+
+  <style>
+    .glass{
+      border:0;border-radius:14px;box-shadow:0 10px 28px rgba(3,10,26,.12);
+      background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,255,255,.92));
+      backdrop-filter:blur(4px);
+    }
+    .page-title{font-weight:800;letter-spacing:.2px}
+    .chip{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .55rem;border-radius:999px;font-size:.8rem;font-weight:700}
+    .chip-ativo{background:#e6f7ed;color:#117a3a}
+    .chip-inativo{background:#fff1f0;color:#a8071a}
+    .toolbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+    .toolbar .search{flex:1 1 260px}
+    .btn-soft{border:1px solid rgba(0,0,0,.06);background:#f8fafc;border-radius:10px}
+    .table-modern thead th{font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0}
+    .table-modern tbody td{vertical-align:middle}
+    .table-modern.compact tbody td{padding-top:.4rem;padding-bottom:.4rem}
+
+    /* conserto do dropdown cortado */
+    .table-wrapper{overflow:visible;}
+    .table-wrapper .table-responsive{
+      overflow-x:auto;
+      overflow-y:visible;
+    }
+    .table-wrapper .dropdown-menu{ z-index:1055; }
+
+    /* Mobile: vira “cards” */
+    @media (max-width: 720px){
+      .table-wrapper{display:none}
+      .mobile-cards{display:block}
+    }
+    @media (min-width: 721px){
+      .mobile-cards{display:none}
+    }
+  </style>
+
+  <div class="d-flex align-items-start justify-content-between mb-3">
+    <div>
+      <h1 class="h5 page-title m-0">Administração • Tipos de Chamados</h1>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'solicitacoes:tipo_create' %}" class="btn btn-primary">+ Novo Tipo</a>
+    </div>
+  </div>
+
+  <div class="glass p-3 mb-3">
+    <div class="toolbar">
+      <div class="input-group search">
+        <span class="input-group-text bg-white border-end-0">🔎</span>
+        <input id="filterInput" type="text" class="form-control border-start-0" placeholder="Buscar por nome...">
+      </div>
+      <button id="btnLimpar" class="btn btn-outline-secondary">Limpar filtros</button>
+    </div>
+  </div>
+
+  {# ======= TABELA DESKTOP ======= #}
+  <div class="glass table-wrapper p-2">
+    <div class="table-responsive">
+      <table id="tiposTable" class="table table-modern align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Nome</th>
+            <th class="text-center" style="width:120px">Ativo</th>
+            <th style="width:220px">Criado em</th>
+            <th style="width:120px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tipos %}
+          <tr data-name="{{ t.nome|lower }}">
+            <td class="fw-semibold">{{ t.nome }}</td>
+            <td class="text-center">
+              {% if t.ativo %}
+                <span class="chip chip-ativo">Ativo</span>
+              {% else %}
+                <span class="chip chip-inativo">Inativo</span>
+              {% endif %}
+            </td>
+            <td>{{ t.criado_em|date:"d/m/Y H:i" }}</td>
+            <td class="text-end">
+              <div class="dropdown position-static">
+                <button class="btn btn-soft dropdown-toggle"
+                        data-bs-toggle="dropdown"
+                        data-bs-display="static"
+                        aria-expanded="false">
+                  Ações
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="{% url 'solicitacoes:tipo_update' t.id %}">Editar</a></li>
+                  <li><a class="dropdown-item" href="{% url 'solicitacoes:tipo_perguntas' t.id %}">Perguntas</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <a href="#" class="dropdown-item text-danger btn-delete"
+                       data-id="{{ t.id }}"
+                       data-name="{{ t.nome }}"
+                       data-url="{% url 'solicitacoes:tipo_delete' t.id %}">
+                       Excluir
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-center text-muted py-4">Nenhum tipo cadastrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ======= CARTÕES MOBILE ======= #}
+  <div class="mobile-cards">
+    {% for t in tipos %}
+      <div class="glass p-3 mb-2" data-name="{{ t.nome|lower }}">
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="fw-semibold">{{ t.nome }}</div>
+          {% if t.ativo %}
+            <span class="chip chip-ativo">Ativo</span>
+          {% else %}
+            <span class="chip chip-inativo">Inativo</span>
+          {% endif %}
+        </div>
+        <div class="small text-muted mt-1">Criado em {{ t.criado_em|date:"d/m/Y H:i" }}</div>
+        <div class="d-flex gap-2 mt-2">
+          <a class="btn btn-outline-primary btn-sm" href="{% url 'solicitacoes:tipo_update' t.id %}">Editar</a>
+          <a class="btn btn-outline-info btn-sm" href="{% url 'solicitacoes:tipo_perguntas' t.id %}">Perguntas</a>
+          <button class="btn btn-outline-danger btn-sm btn-delete"
+                  data-id="{{ t.id }}"
+                  data-name="{{ t.nome }}"
+                  data-url="{% url 'solicitacoes:tipo_delete' t.id %}">
+            Excluir
+          </button>
+        </div>
+      </div>
+    {% empty %}
+      <div class="glass p-4 text-center text-muted">Nenhum tipo cadastrado.</div>
+    {% endfor %}
+  </div>
+
+</div>
+
+{# ======= Modal confirmação de exclusão ======= #}
+<div class="modal fade" id="confirmDelModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" id="delForm">
+      {% csrf_token %}
+      <div class="modal-header">
+        <h5 class="modal-title">Excluir tipo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Tem certeza que deseja excluir <strong id="delName"></strong>?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-danger">Excluir</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const tbl   = document.getElementById('tiposTable');
+  const input = document.getElementById('filterInput');
+  const btnCp = document.getElementById('btnCompact'); // opcional
+  const btnLp = document.getElementById('btnLimpar');
+
+  function eachRow(cb){
+    document.querySelectorAll('[data-name]').forEach(cb);
+  }
+  function updateCount(){
+    const total = document.querySelectorAll('[data-name]').length;
+    const vis   = Array.from(document.querySelectorAll('[data-name]'))
+                    .filter(x => x.style.display !== 'none').length;
+    // se quiser, exiba em algum lugar
+    // console.log(`${vis}/${total}`);
+  }
+
+  input?.addEventListener('input', function(){
+    const q = this.value.trim().toLowerCase();
+    eachRow(el=>{
+      const match = (el.getAttribute('data-name') || '').includes(q);
+      el.style.display = match ? '' : 'none';
+    });
+    updateCount();
+  });
+
+  btnCp?.addEventListener('click', function(){
+    tbl?.classList.toggle('compact');
+  });
+
+  btnLp?.addEventListener('click', function(){
+    if (input) input.value = '';
+    eachRow(el=>{ el.style.display = ''; });
+    updateCount();
+  });
+
+  updateCount();
+
+  // Confirmação de exclusão
+  const delModalEl = document.getElementById('confirmDelModal');
+  const delForm    = document.getElementById('delForm');
+  const delNameEl  = document.getElementById('delName');
+  const delModal   = delModalEl ? new bootstrap.Modal(delModalEl) : null;
+
+  document.querySelectorAll('.btn-delete').forEach(btn=>{
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      if (!delModal) return;
+      delForm.action = this.dataset.url;
+      delNameEl.textContent = this.dataset.name || '';
+      delModal.show();
+    });
+  });
+})();
+</script>
+{% endblock %}

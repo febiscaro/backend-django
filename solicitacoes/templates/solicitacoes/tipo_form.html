@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4" style="max-width:840px">
+
+  <style>
+    .glass{
+      border:0;border-radius:16px;
+      box-shadow:0 12px 30px rgba(3,10,26,.12);
+      background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,255,255,.92));
+      backdrop-filter:blur(4px);
+    }
+    .page-title{font-weight:800;letter-spacing:.2px}
+    /* ícone de ajuda com “?” textual (não some e não vira pontinho) */
+    .help-icon{
+      border:0;background:#eef2ff;color:#334155;
+      width:22px;height:22px;border-radius:999px;
+      display:inline-flex;align-items:center;justify-content:center;
+      line-height:1;cursor:help;font-weight:700;font-size:.75rem;
+      padding:0;
+    }
+    .help-icon:hover{background:#e0e7ff}
+    .field-error{font-size:.85rem;color:#b42318;margin-top:.25rem}
+    .input-hint{color:#64748b}
+  </style>
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h5 page-title m-0">{{ titulo|default:"Novo tipo" }}</h1>
+    <a class="btn btn-outline-secondary" href="{% url 'solicitacoes:tipos_list' %}">Voltar</a>
+  </div>
+
+  <div class="glass p-3 p-md-4">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger mb-3">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <!-- Nome -->
+      <div class="mb-3">
+        <label class="form-label d-flex align-items-center gap-2 mb-1">
+          Nome
+          <button type="button" class="help-icon" data-bs-toggle="tooltip"
+                  title="Como o tipo aparecerá para o usuário ao abrir um chamado.">?</button>
+        </label>
+        <div class="input-group">
+          <span class="input-group-text bg-white border-end-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 7h16v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
+          </span>
+          {{ form.nome }}
+        </div>
+        {% if form.nome.errors %}<div class="field-error">{{ form.nome.errors|join:", " }}</div>{% endif %}
+      </div>
+
+      <!-- Descrição -->
+      <div class="mb-3">
+        <label class="form-label d-flex align-items-center gap-2 mb-1">
+          Descrição
+          <button type="button" class="help-icon" data-bs-toggle="tooltip"
+                  title="Texto opcional que explica quando este tipo deve ser usado.">?</button>
+        </label>
+        {{ form.descricao }}
+        {% if form.descricao.errors %}<div class="field-error">{{ form.descricao.errors|join:", " }}</div>{% endif %}
+      </div>
+
+      <!-- Setores autorizados -->
+      <div class="mb-3">
+        <label class="form-label d-flex align-items-center gap-2 mb-1">
+          Setores autorizados (vazio = todos)
+          <button type="button" class="help-icon" data-bs-toggle="tooltip" data-bs-html="true"
+                  title="Deixe em branco para liberar a todos.<br>Separe por ponto e vírgula: <em>RH; Financeiro; TI</em>.">?</button>
+        </label>
+        <div class="input-group">
+          <span class="input-group-text bg-white border-end-0">🏷️</span>
+          {{ form.setores_permitidos }}
+        </div>
+        <div class="form-text input-hint">Separe por ponto e vírgula, ex.: RH; Financeiro; TI</div>
+        {% if form.setores_permitidos.errors %}<div class="field-error">{{ form.setores_permitidos.errors|join:", " }}</div>{% endif %}
+      </div>
+
+      <!-- Ativo -->
+      <div class="form-check form-switch mb-3">
+        {{ form.ativo }}
+        <label class="form-check-label">Ativo</label>
+        <div class="form-text input-hint">Quando desativado, não aparece para abertura de novos chamados.</div>
+      </div>
+
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-primary" type="submit">Salvar</button>
+        <a class="btn btn-outline-secondary" href="{% url 'solicitacoes:tipos_list' %}">Voltar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Ativa tooltips do Bootstrap
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el){
+    try { new bootstrap.Tooltip(el, {trigger:'hover focus', container:'body'}); } catch(e){}
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4" style="max-width:640px">
+  <h1 class="h5 mb-3">Excluir Tipo</h1>
+  <p>Tem certeza que deseja excluir o tipo <strong>{{ tipo.nome }}</strong>?</p>
+  <form method="post">
+    {% csrf_token %}
+    <button class="btn btn-danger" type="submit">Excluir</button>
+    <a class="btn btn-outline-secondary" href="{% url 'solicitacoes:tipos_list' %}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

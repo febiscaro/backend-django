@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+
+  <style>
+    .glass{border:0;border-radius:14px;box-shadow:0 10px 28px rgba(3,10,26,.12);
+           background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,255,255,.92));
+           backdrop-filter:blur(4px);}
+    .page-title{font-weight:800;letter-spacing:.2px}
+    .toolbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+    .toolbar .search{flex:1 1 260px}
+    .btn-soft{border:1px solid rgba(0,0,0,.06);background:#f8fafc;border-radius:10px}
+    .table-modern thead th{font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0}
+    .table-modern tbody td{vertical-align:middle}
+    .table-modern.compact tbody td{padding-top:.4rem;padding-bottom:.45rem}
+    .field-error{font-size:.8rem;color:#b42318}
+    .glow{animation:glow 1.2s ease-out 1}
+    @keyframes glow{
+      0%{box-shadow:0 0 0 0 rgba(47,102,255,.55)}
+      100%{box-shadow:0 0 0 14px rgba(47,102,255,0)}
+    }
+
+    /* -------- help icon (substitui as “bolinhas”) -------- */
+    .help-icon{
+      width:18px;height:18px;border-radius:999px;
+      border:1px solid #cbd5e1;background:#fff;color:#64748b;
+      display:inline-flex;align-items:center;justify-content:center;
+      cursor:help;line-height:1;
+    }
+    .help-icon::before{content:'?';font-weight:700;font-size:12px;line-height:18px}
+    .help-icon:hover{background:#f8fafc;border-color:#94a3b8;color:#334155}
+    .help-icon:focus-visible{outline:2px solid #94a3b8;outline-offset:2px}
+    /* se existir algum SVG antigo dentro do botão, esconde */
+    .help-icon svg{display:none}
+  </style>
+
+  <div class="d-flex align-items-start justify-content-between mb-3">
+    <div>
+      <h1 class="h5 page-title m-0">Perguntas do Tipo: {{ tipo.nome }}</h1>
+      
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'solicitacoes:tipos_list' %}">Voltar</a>
+  </div>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="glass p-3 mb-3" id="boxMeta">
+      <div class="row g-3 align-items-start">
+        <!-- Nome -->
+        <div class="col-lg-8">
+          <label class="form-label mb-1 d-flex align-items-center gap-2">
+            Nome
+            <button type="button" class="help-icon" data-bs-toggle="tooltip"
+                    title="Como o tipo aparece para os usuários na abertura do chamado."></button>
+          </label>
+          {{ form.nome }}
+          {% if form.nome.errors %}<div class="text-danger small mt-1">{{ form.nome.errors|join:", " }}</div>{% endif %}
+        </div>
+
+        <!-- Ativo -->
+        <div class="col-lg-4">
+          <label class="form-label mb-1 d-flex align-items-center gap-2">
+            Ativo
+            <button type="button" class="help-icon" data-bs-toggle="tooltip"
+                    title="Desmarcado: o tipo fica oculto para abertura de novos chamados."></button>
+          </label>
+          <div class="d-flex align-items-center gap-2">
+            {{ form.ativo }}
+            <span class="text-muted small">Disponível para abertura</span>
+          </div>
+          {% if form.ativo.errors %}<div class="text-danger small mt-1">{{ form.ativo.errors|join:", " }}</div>{% endif %}
+        </div>
+
+        <!-- Descrição -->
+        <div class="col-12">
+          <label class="form-label mb-1 d-flex align-items-center gap-2">
+            Descrição
+            <button type="button" class="help-icon" data-bs-toggle="tooltip"
+                    title="Texto explicativo exibido para o usuário (opcional)."></button>
+          </label>
+          {{ form.descricao }}
+          {% if form.descricao.errors %}<div class="text-danger small mt-1">{{ form.descricao.errors|join:", " }}</div>{% endif %}
+        </div>
+
+        <!-- Setores autorizados (se existir no form) -->
+        {% if form.setores_permitidos %}
+        <div class="col-12 col-lg-8">
+          <label class="form-label mb-1 d-flex align-items-center gap-2">
+            Setores autorizados (vazio = todos)
+            <button type="button" class="help-icon" data-bs-toggle="tooltip" data-bs-html="true"
+                    title="Deixe em branco para liberar a todos.<br>Separe por ponto e vírgula, ex.: <em>RH; Financeiro; TI</em>."></button>
+          </label>
+          {{ form.setores_permitidos }}
+          {% if form.setores_permitidos.errors %}
+            <div class="text-danger small mt-1">{{ form.setores_permitidos.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="glass p-3 mb-2">
+      <div class="toolbar">
+        <div class="input-group search">
+          <span class="input-group-text bg-white border-end-0">🔎</span>
+          <input id="qPerg" type="text" class="form-control border-start-0" placeholder="Buscar nas perguntas...">
+        </div>
+        <button id="btnCompact" class="btn btn-soft" type="button">Modo compacto</button>
+        <button id="btnNova" class="btn btn-primary" type="button">+ Nova pergunta</button>
+      </div>
+    </div>
+
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}
+      <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
+    {% endif %}
+
+    <div class="glass p-2">
+      <div class="table-responsive">
+        <table id="tblPerg" class="table table-modern table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:90px">Ordem</th>
+              <th style="min-width:220px">Pergunta</th>
+              <th style="width:170px">Tipo</th>
+              <th style="width:120px" class="text-center">Obrigatória</th>
+              <th style="min-width:220px">Opções</th>
+              <th style="min-width:220px">Ajuda</th>
+              <th style="width:90px" class="text-center">Ativa</th>
+              <th style="width:90px" class="text-center">Excluir</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyPerg">
+            {% for f in formset %}
+              {{ f.id }}
+              <tr data-row>
+                <td>
+                  {{ f.ordem }}
+                  {% if f.ordem.errors %}<div class="field-error">{{ f.ordem.errors|join:", " }}</div>{% endif %}
+                </td>
+                <td>
+                  {{ f.texto }}
+                  {% if f.texto.errors %}<div class="field-error">{{ f.texto.errors|join:", " }}</div>{% endif %}
+                </td>
+                <td>
+                  {{ f.tipo_campo|default:f.tipo }}
+                  {% if f.tipo_campo.errors %}<div class="field-error">{{ f.tipo_campo.errors|join:", " }}</div>
+                  {% elif f.tipo.errors %}<div class="field-error">{{ f.tipo.errors|join:", " }}</div>{% endif %}
+                </td>
+                <td class="text-center">
+                  {{ f.obrigatoria }}
+                </td>
+                <td>
+                  {{ f.opcoes }}
+                </td>
+                <td>
+                  {{ f.ajuda }}
+                </td>
+                <td class="text-center">
+                  {{ f.ativa }}
+                </td>
+                <td class="text-center">
+                  {{ f.DELETE }}
+                </td>
+              </tr>
+              {% if f.non_field_errors %}
+                <tr><td colspan="8"><div class="field-error">{{ f.non_field_errors|join:", " }}</div></td></tr>
+              {% endif %}
+            {% empty %}
+              <tr class="text-muted"><td colspan="8" class="text-center py-4">Nenhuma pergunta ainda.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ==== PROTÓTIPO DE LINHA VAZIA PARA CLONAR (empty_form) ==== #}
+    <template id="tmplRow">
+      <tr data-row class="new-row">
+        {{ formset.empty_form.id }}
+        <td>
+          {{ formset.empty_form.ordem }}
+        </td>
+        <td>
+          {{ formset.empty_form.texto }}
+        </td>
+        <td>
+          {{ formset.empty_form.tipo_campo|default:formset.empty_form.tipo }}
+        </td>
+        <td class="text-center">
+          {{ formset.empty_form.obrigatoria }}
+        </td>
+        <td>
+          {{ formset.empty_form.opcoes }}
+        </td>
+        <td>
+          {{ formset.empty_form.ajuda }}
+        </td>
+        <td class="text-center">
+          {{ formset.empty_form.ativa }}
+        </td>
+        <td class="text-center">
+          {{ formset.empty_form.DELETE }}
+        </td>
+      </tr>
+    </template>
+
+    <div class="d-flex gap-2 mt-3">
+      <button class="btn btn-primary" type="submit">Salvar</button>
+      <a class="btn btn-outline-secondary" href="{% url 'solicitacoes:tipos_list' %}">Voltar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const tbl = document.getElementById('tblPerg');
+  const tbody = document.getElementById('tbodyPerg');
+  const btnCompact = document.getElementById('btnCompact');
+  const btnNova = document.getElementById('btnNova');
+  const q = document.getElementById('qPerg');
+
+  const prefix = "{{ formset.prefix }}"; // geralmente "form"
+  const totalInput = document.querySelector(`input[name="${prefix}-TOTAL_FORMS"]`);
+  const tmpl = document.getElementById('tmplRow');
+
+  if(!tbl) return;
+
+  // tooltips Bootstrap nos botões de ajuda
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el){
+    try { new bootstrap.Tooltip(el, {trigger: 'hover focus', container: 'body'}); } catch(e){}
+  });
+
+  // filtro visual
+  q?.addEventListener('input', function(){
+    const needle = this.value.toLowerCase();
+    tbody.querySelectorAll('tr[data-row]').forEach(tr=>{
+      tr.style.display = tr.innerText.toLowerCase().includes(needle) ? '' : 'none';
+    });
+  });
+
+  // modo compacto
+  btnCompact?.addEventListener('click', ()=> tbl.classList.toggle('compact'));
+
+  // criar nova linha a partir do empty_form
+  btnNova?.addEventListener('click', ()=>{
+    if (!totalInput || !tmpl) return;
+    const next = parseInt(totalInput.value || "0", 10);
+
+    // substitui __prefix__ -> índice novo
+    let html = tmpl.innerHTML.replace(/__prefix__/g, next);
+
+    // cria nó
+    const frag = document.createElement('tbody');
+    frag.innerHTML = html.trim();
+    const newRow = frag.firstElementChild;
+    if (!newRow) return;
+
+    tbody.appendChild(newRow);
+    totalInput.value = String(next + 1);
+
+    // foco no primeiro campo editável
+    const firstEditable = newRow.querySelector('input[type="text"], textarea, select');
+    if (firstEditable){
+      firstEditable.focus();
+      firstEditable.classList.add('glow');
+      setTimeout(()=>firstEditable.classList.remove('glow'), 1200);
+    }
+  });
+})();
+</script>
+{% endblock %}

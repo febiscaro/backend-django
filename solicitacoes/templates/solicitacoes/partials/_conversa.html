@@ -1,0 +1,113 @@
+{% load static %}
+
+<div class="vstack gap-3">
+
+  {# Lista de mensagens #}
+  <div class="vstack gap-2">
+    {% if mensagens %}
+      {% for m in mensagens %}
+        <div class="border rounded p-2">
+          <div class="d-flex justify-content-between small text-muted">
+            <div>
+              <strong>{{ m.autor|default:"-" }}</strong>
+              • {{ m.criado_em|date:"d/m/Y H:i" }}
+              {% if m.visibilidade and m.visibilidade != 'publica' %}
+                • <span class="badge bg-secondary">Interna</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="mt-1">
+            {{ m.texto|linebreaksbr }}
+          </div>
+          {% if m.anexo %}
+            <div class="mt-1 small">
+              Anexo: <a href="{{ m.anexo.url }}" target="_blank">{{ m.anexo.name|default:"baixar" }}</a>
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-muted">Nenhuma mensagem ainda.</div>
+    {% endif %}
+  </div>
+
+  {# Formulário de envio #}
+  <form id="form-conversa"
+        method="post"
+        enctype="multipart/form-data"
+        action="{% url 'solicitacoes:chamado_enviar_mensagem' chamado.id %}">
+    {% csrf_token %}
+
+    {# IMPORTANTE: padronize os nomes abaixo com o ModelForm #}
+    <textarea name="texto" class="form-control" rows="3"
+              placeholder="Escreva sua mensagem..." required></textarea>
+
+    <div class="d-flex gap-2 mt-2 align-items-center">
+      <input type="file" name="anexo" class="form-control" style="max-width: 380px;">
+
+      {# Se o seu ModelForm exigir visibilidade, definimos por padrão como pública #}
+      <input type="hidden" name="visibilidade" value="publica">
+
+      <button id="btn-enviar-msg" type="button" class="btn btn-primary">Enviar</button>
+    </div>
+
+    {# Mostra erros do form se vierem na resposta #}
+    <div id="conversa-erros" class="text-danger small mt-2 d-none"></div>
+  </form>
+</div>
+
+<script>
+  // ---- helpers CSRF
+  function getCookie(name){
+    let v=null;
+    if(document.cookie && document.cookie!==''){
+      for(const c of document.cookie.split(';')){
+        const t=c.trim();
+        if(t.startsWith(name+'=')){ v=decodeURIComponent(t.substring(name.length+1)); break; }
+      }
+    }
+    return v;
+  }
+  function getCsrfToken(){
+    const c=getCookie('csrftoken');
+    if(c && c.length>=32) return c;
+    const i=document.querySelector('input[name=csrfmiddlewaretoken]')?.value;
+    return (i && i.length>=32) ? i : null;
+  }
+
+  // ---- bind do botão enviar
+  (function bindConversaForm(){
+    const form = document.getElementById('form-conversa');
+    const btn  = document.getElementById('btn-enviar-msg');
+    const errs = document.getElementById('conversa-erros');
+    if(!form || !btn) return;
+    if(btn.dataset.bound==='1') return;
+    btn.dataset.bound='1';
+
+    btn.addEventListener('click', async () => {
+      errs.classList.add('d-none'); errs.textContent='';
+      btn.disabled = true;
+      try{
+        const data = new FormData(form);
+        if(!data.get('csrfmiddlewaretoken')){
+          const t = getCsrfToken(); if(t) data.append('csrfmiddlewaretoken', t);
+        }
+        const resp = await fetch(form.action + '?ajax=1', {
+          method: 'POST',
+          body: data,
+          credentials: 'same-origin'
+        });
+        const html = await resp.text();
+        // substitui TODO o bloco das mensagens (inclui o form novamente já rebindado)
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html;
+        form.closest('.vstack').parentElement.innerHTML = wrapper.innerHTML;
+      } catch(e){
+        errs.textContent = 'Falha ao enviar a mensagem.';
+        errs.classList.remove('d-none');
+      } finally{
+        btn.disabled = false;
+      }
+    });
+  })();
+</script>

@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h5 m-0">Chamado #{{ chamado.id }} — {{ chamado.tipo.nome }}</h1>
+
+    {% if is_admin %}
+      <a href="{% url 'solicitacoes:gerenciar_chamados' %}" class="btn btn-outline-secondary btn-sm">← Voltar</a>
+    {% else %}
+      <a href="{% url 'solicitacoes:meus_chamados' %}" class="btn btn-outline-secondary btn-sm">← Voltar</a>
+    {% endif %}
+  </div>
+
+  <div class="row g-3">
+    <!-- Coluna principal -->
+    <div class="{% if is_admin %}col-lg-8{% else %}col-lg-12{% endif %}">
+
+      <!-- Abertura -->
+      <div class="card">
+        <div class="card-header"><strong>Abertura</strong></div>
+        <div class="card-body">
+          <div id="p-abertura-loader" class="text-muted small">Carregando…</div>
+          <div id="p-abertura-body"></div>
+        </div>
+      </div>
+
+      <!-- Conversa -->
+      <div class="card mt-3">
+        <div class="card-header"><strong>Conversa</strong></div>
+        <div class="card-body">
+          <div id="p-conversa-loader" class="text-muted small">Carregando…</div>
+          <div id="p-conversa-body" class="vstack gap-2"></div>
+        </div>
+      </div>
+    </div>
+
+    {% if is_admin %}
+    <!-- Coluna lateral: Tratativa (somente Administrativo) -->
+    <div class="col-lg-4">
+      <form id="form-tratativa" method="post" enctype="multipart/form-data"
+            action="{% url 'solicitacoes:tratar_chamado' chamado.id %}" class="card">
+        {% csrf_token %}
+        <!-- garante que, quando der tudo certo, a view sabe para onde voltar -->
+        <input type="hidden" name="next" value="{% url 'solicitacoes:gerenciar_chamados' %}">
+
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Tratativa (Administrativo)</strong>
+          {% if bloquear_acoes %}
+            <span class="badge text-bg-warning">Somente superusuário pode editar</span>
+          {% endif %}
+        </div>
+
+        <!-- Desabilita todos os controles quando bloquear_acoes=True -->
+        <fieldset {% if bloquear_acoes %}disabled aria-disabled="true"{% endif %}>
+          <div class="card-body">
+
+            {% if bloquear_acoes %}
+              <div class="alert alert-secondary d-flex align-items-start gap-2" role="alert">
+                <div>
+                  <div class="fw-bold mb-1">
+                    Chamado {{ chamado.get_status_display|lower }} — ações bloqueadas
+                  </div>
+                  <div class="small">
+                    Apenas <strong>superusuário</strong> pode reabrir/editar um chamado {{ chamado.get_status_display|lower }}.
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+
+            <div class="mb-3">
+              <label class="form-label">Status atual</label><br>
+              {% if chamado.status == chamado.Status.ABERTO %}
+                <span class="badge bg-primary">Aberto</span>
+              {% elif chamado.status == chamado.Status.EM_ANDAMENTO %}
+                <span class="badge bg-warning text-dark">Em andamento</span>
+              {% elif chamado.status == chamado.Status.SUSPENSO %}
+                <span class="badge bg-danger">Suspenso</span>
+              {% elif chamado.status == chamado.Status.CONCLUIDO %}
+                <span class="badge bg-success">Concluído</span>
+              {% elif chamado.status == chamado.Status.CANCELADO %}
+                <span class="badge bg-dark">Cancelado</span>
+              {% endif %}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Tratativa</label>
+              <textarea name="tratativa_adm" class="form-control" rows="6"
+                        placeholder="Descreva a tratativa...">{{ chamado.tratativa_adm }}</textarea>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Anexo da tratativa (opcional)</label>
+              <input type="file" name="anexo_adm" class="form-control">
+              {% if chamado.anexo_adm %}
+                <div class="form-text">Atual: <a href="{{ chamado.anexo_adm.url }}" target="_blank" rel="noopener noreferrer">abrir</a></div>
+              {% endif %}
+            </div>
+
+            <!-- CAMPO MOTIVO – aparece só p/ suspender/cancelar -->
+            <div class="mb-3 d-none" id="grp-motivo">
+              <label class="form-label">Motivo (apenas para suspender/cancelar)</label>
+              <select name="motivo" class="form-select" id="sel-motivo">
+                <option value="">— Selecione —</option>
+                <option>Chamado não procede</option>
+                <option>Chamado errado</option>
+                <option>Chamado de teste</option>
+                <option>Chamado perdido</option>
+                <option>Outros</option>
+              </select>
+              <div class="invalid-feedback d-block d-none" id="motivo-erro">
+                Selecione um motivo para suspender/cancelar.
+              </div>
+            </div>
+          </div>
+
+          <div class="card-footer d-flex justify-content-between">
+            <div>
+              <button type="submit" name="acao" value="salvar" class="btn btn-secondary">Salvar</button>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="submit" name="acao" value="suspender" class="btn btn-warning">Suspender</button>
+              <button type="submit" name="acao" value="cancelar"  class="btn btn-dark">Cancelar</button>
+              <button type="submit" name="acao" value="concluir"  class="btn btn-success">Concluir</button>
+            </div>
+          </div>
+        </fieldset>
+      </form>
+
+      <div class="small text-muted mt-2">
+        <div><strong>Solicitante:</strong> {{ chamado.solicitante }}</div>
+        <div><strong>Criado em:</strong> {{ chamado.criado_em|date:"d/m/Y H:i" }}</div>
+        {% if chamado.atendente_nome %}
+          <div><strong>Atendente:</strong> {{ chamado.atendente_nome }}</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* ===== Helpers CSRF (para as cargas AJAX) ===== */
+  function getCookie(name){
+    let v=null;
+    if(document.cookie && document.cookie!==''){
+      for(const c of document.cookie.split(';')){
+        const t=c.trim();
+        if(t.startsWith(name+'=')){ v=decodeURIComponent(t.substring(name.length+1)); break; }
+      }
+    }
+    return v;
+  }
+  function getCsrfToken(){
+    const c=getCookie('csrftoken');
+    if(c && c.length>=32) return c;
+    const i=document.querySelector('input[name=csrfmiddlewaretoken]')?.value;
+    return (i && i.length>=32) ? i : null;
+  }
+
+  /* ===== Carregar Abertura ===== */
+  async function carregarAbertura(id){
+    const loader=document.getElementById('p-abertura-loader');
+    const body  =document.getElementById('p-abertura-body');
+    loader.style.display='block'; body.innerHTML='';
+    try{
+      const resp=await fetch(`/solicitacoes/chamados/${id}/abertura/`,{credentials:'same-origin'});
+      if(!resp.ok) throw new Error(resp.status);
+      body.innerHTML=await resp.text();
+    }catch(_e){
+      body.innerHTML="<p class='text-danger small m-0'>Falha ao carregar a abertura.</p>";
+    }finally{ loader.style.display='none'; }
+  }
+
+  /* ===== Carregar Conversa ===== */
+  async function carregarConversa(id){
+    const loader=document.getElementById('p-conversa-loader');
+    const body  =document.getElementById('p-conversa-body');
+    loader.style.display='block'; body.innerHTML='';
+    try{
+      const resp=await fetch(`/solicitacoes/chamados/${id}/mensagens/`,{credentials:'same-origin'});
+      if(!resp.ok) throw new Error(resp.status);
+      body.innerHTML=await resp.text();
+      bindConversaForm(id);
+    }catch(_e){
+      body.innerHTML="<p class='text-danger small m-0'>Não foi possível carregar a conversa.</p>";
+    }finally{ loader.style.display='none'; }
+  }
+
+  /* ===== Envio da conversa ===== */
+  function bindConversaForm(id){
+    const body=document.getElementById('p-conversa-body');
+    const form=body?.querySelector('#form-conversa');
+    const btn =form?.querySelector('#btn-enviar-msg');
+    if(!form || !btn) return;
+    if(btn.dataset.bound==='1') return;
+    btn.dataset.bound='1';
+
+    btn.addEventListener('click', async function(){
+      btn.disabled=true;
+      try{
+        const data=new FormData(form);
+        if(!data.get('csrfmiddlewaretoken')){
+          const t=getCsrfToken(); if(t) data.append('csrfmiddlewaretoken',t);
+        }
+        const action=form.getAttribute('action') || `/solicitacoes/chamados/${id}/mensagens/enviar/`;
+        const resp=await fetch(action+'?ajax=1',{method:'POST',body:data,credentials:'same-origin'});
+        if(!resp.ok){ alert(`Falha ao enviar (HTTP ${resp.status}).`); return; }
+        document.getElementById('p-conversa-body').innerHTML=await resp.text();
+        bindConversaForm(id);
+      }finally{
+        btn.disabled=false;
+      }
+    });
+  }
+
+  /* ===== Motivo: só p/ suspender/cancelar e validação ===== */
+  (function setupMotivo(){
+    const form  = document.getElementById('form-tratativa');
+    const grp   = document.getElementById('grp-motivo');
+    const sel   = document.getElementById('sel-motivo');
+    const err   = document.getElementById('motivo-erro');
+
+    if(!form || !grp || !sel) return;
+
+    function precisaMotivo(acao){ return acao==='suspender' || acao==='cancelar'; }
+
+    sel.addEventListener('change', ()=>{
+      sel.classList.remove('is-invalid');
+      err.classList.add('d-none');
+    });
+
+    form.querySelectorAll('button[name="acao"]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const acao = btn.value;
+        if(precisaMotivo(acao)){
+          grp.classList.remove('d-none');
+          if(!sel.value){
+            e.preventDefault();
+            sel.classList.add('is-invalid');
+            err.classList.remove('d-none');
+            sel.focus();
+          }
+        }else{
+          grp.classList.add('d-none');
+          sel.classList.remove('is-invalid');
+          err.classList.add('d-none');
+        }
+      });
+    });
+  })();
+
+  document.addEventListener('DOMContentLoaded', function(){
+    const id={{ chamado.id }};
+    carregarAbertura(id);
+    carregarConversa(id);
+  });
+</script>
+{% endblock %}

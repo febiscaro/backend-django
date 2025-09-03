@@ -1,0 +1,118 @@
+{% load static %}
+
+<!-- NAVBAR RESPONSIVA (Bootstrap 5) -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm" aria-label="Barra de navegação principal">
+  <div class="container-fluid">
+    <!-- Brand leva para a Home -->
+    <a class="navbar-brand fw-bold" href="/">Enprodes Sys</a>
+
+    <!-- Botão hamburguer (abre o offcanvas no mobile) -->
+    <button class="navbar-toggler" type="button"
+            data-bs-toggle="offcanvas" data-bs-target="#mainNavOffcanvas"
+            aria-controls="mainNavOffcanvas" aria-label="Abrir menu de navegação">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Offcanvas (mobile) / Conteúdo inline (≥ lg) -->
+    <div class="offcanvas offcanvas-end text-bg-dark" tabindex="-1" id="mainNavOffcanvas" aria-labelledby="mainNavOffcanvasLabel">
+      <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="mainNavOffcanvasLabel">Enprodes Sys</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+      </div>
+
+      <div class="offcanvas-body d-flex flex-lg-row flex-column">
+        <!-- Bloco ESQUERDO: navegação -->
+        <ul class="navbar-nav me-lg-auto mb-2 mb-lg-0">
+
+          {% if request.user.is_authenticated %}
+            <!-- Dropdown: Chamados -->
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle {% if 'solicitacoes' in request.path %}active{% endif %}"
+                 href="#" id="menuChamados" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                Chamados
+              </a>
+              <ul class="dropdown-menu" aria-labelledby="menuChamados">
+                <li>
+                  <a class="dropdown-item {% if 'solicitacoes/meus-chamados' in request.path %}active{% endif %}"
+                     href="{% url 'solicitacoes:meus_chamados' %}">
+                    Meus Chamados
+                  </a>
+                </li>
+
+                {% if request.user.is_superuser or request.user.perfil == 'ADMIN' or request.user.perfil == 'GESTOR' %}
+                <li>
+                  <a class="dropdown-item {% if 'solicitacoes/atendimento' in request.path %}active{% endif %}"
+                     href="{% url 'solicitacoes:gerenciar_chamados' %}">
+                    Atendimento de Chamados
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item {% if 'solicitacoes/tipos' in request.path %}active{% endif %}"
+                     href="{% url 'solicitacoes:tipos_list' %}">
+                    Tipos de Chamados
+                  </a>
+                </li>
+                {% endif %}
+              </ul>
+            </li>
+          {% endif %}
+
+          <!-- Dropdown: Admin -->
+          {% if request.user.is_authenticated %}
+            {% if request.user.is_superuser or request.user.perfil == 'ADMIN' or request.user.perfil == 'GESTOR' %}
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle
+                          {% if request.path|slice:':7' == '/admin/' or 'accounts' in request.path %}active{% endif %}"
+                   href="#" id="menuAdmin" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Admin
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="menuAdmin">
+                  <li>
+                    <a class="dropdown-item {% if request.path|slice:':7' == '/admin/' %}active{% endif %}"
+                       href="/admin/">
+                      Django Admin
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item {% if 'accounts' in request.path %}active{% endif %}"
+                       href="{% url 'accounts:dashboard' %}">
+                      Usuários
+                    </a>
+                  </li>
+                </ul>
+              </li>
+            {% endif %}
+          {% endif %}
+        </ul>
+
+        <!-- Bloco DIREITO: usuário -->
+        <ul class="navbar-nav ms-lg-auto">
+          {% if request.user.is_authenticated %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userMenu" role="button"
+                 data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="me-2">Olá,</span>
+                <strong>{% firstof request.user.get_full_name request.user.nome_completo request.user.cpf "usuário" %}</strong>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                <li><a class="dropdown-item" href="{% url 'accounts:perfil' %}">Meu perfil</a></li>
+                <li><a class="dropdown-item" href="{% url 'password_change' %}">Trocar senha</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <form method="post" action="{% url 'logout' %}" class="px-3 py-1">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-warning w-100">Sair</button>
+                  </form>
+                </li>
+              </ul>
+            </li>
+          {% else %}
+            <li class="nav-item">
+              <a class="btn btn-primary btn-sm ms-lg-2" href="{% url 'login' %}">Entrar</a>
+            </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</nav>

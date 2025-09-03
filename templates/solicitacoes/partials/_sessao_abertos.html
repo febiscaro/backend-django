@@ -1,0 +1,119 @@
+<section id="sessao-abertos" class="mb-4" {% if oob %}hx-swap-oob="true"{% endif %}>
+  <div class="card shadow-sm">
+    <!-- Header com fundo e título centralizado -->
+    <div class="card-header header-abertos py-2 position-relative d-flex align-items-center flex-wrap">
+      <!-- título central absoluto -->
+      <strong class="position-absolute top-50 start-50 translate-middle">Abertos</strong>
+
+      <!-- Controles (quebra no mobile) -->
+      <div class="ms-auto d-flex align-items-center gap-2 small flex-wrap">
+        <span class="d-none d-sm-inline">Por página:</span>
+        <span class="d-inline d-sm-none">Por pág.:</span>
+        <select class="form-select form-select-sm w-auto"
+                onchange="location.href='{% if qs_a %}?{{ qs_a }}&{% else %}?{% endif %}pg_a=1&ps_a='+this.value">
+          <option value="6"  {% if ps_a == 6 %}selected{% endif %}>6</option>
+          <option value="10" {% if ps_a == 10 %}selected{% endif %}>10</option>
+          <option value="15" {% if ps_a == 15 %}selected{% endif %}>15</option>
+          <option value="20" {% if ps_a == 20 %}selected{% endif %}>20</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-striped table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:80px">#</th>
+              <th>Tipo</th>
+              <!-- Esconde no mobile -->
+              <th class="d-none d-md-table-cell">Solicitante</th>
+              <th>Status</th>
+              <th class="d-none d-md-table-cell" style="width:180px">Criado</th>
+              <th class="d-none d-md-table-cell" style="width:260px">Tratativa</th>
+              <th style="width:140px" class="text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in abertos %}
+              <tr>
+                <td>{{ c.id }}</td>
+                <td>{{ c.tipo.nome }}</td>
+
+                <!-- escondido no mobile -->
+                <td class="d-none d-md-table-cell">
+                  {% firstof c.solicitante.get_full_name c.solicitante.nome_completo c.solicitante.cpf %}
+                </td>
+
+                <td><span class="badge bg-secondary">Aberto</span></td>
+
+                <!-- escondido no mobile -->
+                <td class="d-none d-md-table-cell">
+                  {{ c.criado_em|date:"d/m/Y H:i" }}<br>
+                  <small class="text-muted">Atualizado: {{ c.atualizado_em|date:"d/m/Y H:i" }}</small>
+                </td>
+
+                <!-- escondido no mobile -->
+                <td class="text-break d-none d-md-table-cell">
+                  {{ c.tratativa_adm|default:"—"|truncatechars:120 }}
+                </td>
+
+                <td class="text-center">
+                  <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalAssumir{{ c.id }}">
+                    Tratar
+                  </button>
+
+                  <!-- Modal Assumir (full-screen no mobile) -->
+                  <div class="modal fade" id="modalAssumir{{ c.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-fullscreen-sm-down">
+                      <form class="modal-content" method="post" action="{% url 'solicitacoes:assumir_chamado' c.id %}">
+                        {% csrf_token %}
+                        <div class="modal-header">
+                          <h5 class="modal-title">Assumir Chamado #{{ c.id }}</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                          Você irá assumir como
+                          <strong>{% firstof request.user.get_full_name request.user.nome_completo request.user.cpf "usuário" %}</strong>.
+                        </div>
+                        <div class="modal-footer">
+                          <button class="btn btn-primary" type="submit">Confirmar e Iniciar Tratativa</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="text-muted text-center">Nenhum chamado.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if abertos.paginator and abertos.paginator.num_pages > 1 %}
+      <div class="card-footer py-2">
+        <nav aria-label="Paginação">
+          <ul class="pagination pagination-sm mb-0 justify-content-center">
+            {% if abertos.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="{% if qs_a %}?{{ qs_a }}&pg_a={{ abertos.previous_page_number }}{% else %}?pg_a={{ abertos.previous_page_number }}{% endif %}">«</a>
+              </li>
+            {% endif %}
+            {% for i in abertos.paginator.page_range %}
+              <li class="page-item {% if abertos.number == i %}active{% endif %}">
+                <a class="page-link" href="{% if qs_a %}?{{ qs_a }}&pg_a={{ i }}{% else %}?pg_a={{ i }}{% endif %}">{{ i }}</a>
+              </li>
+            {% endfor %}
+            {% if abertos.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="{% if qs_a %}?{{ qs_a }}&pg_a={{ abertos.next_page_number }}{% else %}?pg_a={{ abertos.next_page_number }}{% endif %}">»</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+    {% endif %}
+  </div>
+</section>
