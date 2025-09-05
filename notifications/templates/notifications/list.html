@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Notificações</h2>
+<table class="table table-sm">
+  <thead><tr><th>Quando</th><th>Assunto</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for n in items %}
+    <tr class="{% if not n.is_read %}table-light{% endif %}">
+      <td>{{ n.created_at|date:"d/m/Y H:i" }}</td>
+      <td>{{ n.subject|default:n.kind }}</td>
+      <td>{% if n.is_read %}Lida{% else %}Não lida{% endif %}</td>
+      <td>
+        {% if n.ref_app and n.ref_model and n.ref_pk %}
+          <a href="/{{ n.ref_app }}/{{ n.ref_model|lower }}s/{{ n.ref_pk }}/" class="btn btn-sm btn-primary">Abrir</a>
+        {% endif %}
+        {% if not n.is_read %}
+          <a href="{% url 'notifications:mark_read' n.pk %}" class="btn btn-sm btn-outline-secondary">Marcar lida</a>
+        {% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="text-muted">Sem notificações</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

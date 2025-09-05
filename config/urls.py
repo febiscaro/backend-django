@@ -53,6 +53,8 @@ urlpatterns = [
     # Apps
     path("accounts/", include("accounts.urls")),
     path("solicitacoes/", include(("solicitacoes.urls", "solicitacoes"), namespace="solicitacoes")),
+    path("notifications/", include(("notifications.urls", "notifications"), namespace="notifications")),
+
 ]
 
 if settings.DEBUG:

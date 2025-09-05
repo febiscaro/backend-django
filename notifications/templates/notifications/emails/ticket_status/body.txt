@@ -1,0 +1,3 @@
+Olá,
+O status do chamado #{{ chamado.pk }} alterou de {{ old_status }} para {{ new_status }}.
+Acompanhe em: {{ url }}

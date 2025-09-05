@@ -927,28 +927,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<style>
-  /* 1) Não mostrar NENHUM dot/badge dentro da TABELA (desktop)  */
-  .table [id^="m-new-"],
-  .table .dot,
-  .table .status-dot,
-  .table .bullet,
-  .table .badge-dot {
-    display: none !important;
-  }
-
-  /* 2) Nosso dot aparece só quando a linha tiver data-has-new="1"  */
-  .table tr[data-has-new="1"] td:first-child { position: relative; }
-  .table tr[data-has-new="1"] td:first-child::after{
-    content: '';
-    position: absolute;
-    left: 28px; top: 50%; transform: translateY(-50%);
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #b40808ff;
-    box-shadow: 0 0 0 2px #fff;
-  }
-</style>
-
 <script>
 (function(){
   if (window.__MEUS_CHAMADOS_INIT__) return;
@@ -972,23 +950,21 @@
   }
 
   /* ===== Envio "visto" ===== */
-  const SEEN_URL = "/solicitacoes/meus-chamados/seen/";
+  const SEEN_URL = "{% url 'solicitacoes:atendimento_seen' %}";
   function sendSeenNow(id){
-    const token = getCsrfToken(); if(!token) return;
-    const bodyStr = new URLSearchParams({ ids:String(id), csrfmiddlewaretoken: token }).toString();
+    // Envia por GET para evitar CSRF
+    const url = SEEN_URL + "?" + new URLSearchParams({ ids: String(id) }).toString();
+
     if (navigator.sendBeacon){
-      const blob = new Blob([bodyStr], {type:'application/x-www-form-urlencoded; charset=UTF-8'});
-      navigator.sendBeacon(SEEN_URL, blob);
+      // sendBeacon é POST; como aqui é GET, vamos de fetch mesmo
+      fetch(url, { method:"GET", credentials:"same-origin", keepalive:true })
+        .catch(()=>{});
       return;
     }
-    fetch(SEEN_URL, {
-      method:"POST", credentials:"same-origin", keepalive:true,
-      headers:{
-        "Content-Type":"application/x-www-form-urlencoded; charset=UTF-8",
-        "X-Requested-With":"XMLHttpRequest",
-        "X-CSRFToken": token
-      },
-      body: bodyStr
+    fetch(url, {
+      method:"GET",
+      credentials:"same-origin",
+      headers:{ "X-Requested-With": "XMLHttpRequest" }
     }).catch(()=>{});
   }
 

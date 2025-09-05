@@ -32,20 +32,29 @@
                 Chamados
               </a>
               <ul class="dropdown-menu" aria-labelledby="menuChamados">
+
+                {# Meus Chamados: todos, exceto perfil ADMIN (superuser pode ver tudo) #}
+                {% if request.user.is_superuser or request.user.perfil != 'ADMIN' %}
                 <li>
                   <a class="dropdown-item {% if 'solicitacoes/meus-chamados' in request.path %}active{% endif %}"
                      href="{% url 'solicitacoes:meus_chamados' %}">
                     Meus Chamados
                   </a>
                 </li>
+                {% endif %}
 
-                {% if request.user.is_superuser or request.user.perfil == 'ADMIN' or request.user.perfil == 'GESTOR' %}
+                {# Atendimento de Chamados: apenas ADMIN ou superuser #}
+                {% if request.user.is_superuser or request.user.perfil == 'ADMIN' %}
                 <li>
                   <a class="dropdown-item {% if 'solicitacoes/atendimento' in request.path %}active{% endif %}"
                      href="{% url 'solicitacoes:gerenciar_chamados' %}">
                     Atendimento de Chamados
                   </a>
                 </li>
+                {% endif %}
+
+                {# Tipos de Chamados (Modelos): somente superuser #}
+                {% if request.user.is_superuser %}
                 <li>
                   <a class="dropdown-item {% if 'solicitacoes/tipos' in request.path %}active{% endif %}"
                      href="{% url 'solicitacoes:tipos_list' %}">
@@ -53,41 +62,57 @@
                   </a>
                 </li>
                 {% endif %}
+
               </ul>
             </li>
           {% endif %}
 
-          <!-- Dropdown: Admin -->
-          {% if request.user.is_authenticated %}
-            {% if request.user.is_superuser or request.user.perfil == 'ADMIN' or request.user.perfil == 'GESTOR' %}
-              <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle
-                          {% if request.path|slice:':7' == '/admin/' or 'accounts' in request.path %}active{% endif %}"
-                   href="#" id="menuAdmin" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  Admin
-                </a>
-                <ul class="dropdown-menu" aria-labelledby="menuAdmin">
-                  <li>
-                    <a class="dropdown-item {% if request.path|slice:':7' == '/admin/' %}active{% endif %}"
-                       href="/admin/">
-                      Django Admin
-                    </a>
-                  </li>
-                  <li>
-                    <a class="dropdown-item {% if 'accounts' in request.path %}active{% endif %}"
-                       href="{% url 'accounts:dashboard' %}">
-                      Usuários
-                    </a>
-                  </li>
-                </ul>
-              </li>
-            {% endif %}
+          <!-- Dropdown: Admin (somente superuser) -->
+          {% if request.user.is_authenticated and request.user.is_superuser %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle
+                        {% if request.path|slice:':7' == '/admin/' or 'accounts' in request.path %}active{% endif %}"
+                 href="#" id="menuAdmin" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                Admin
+              </a>
+              <ul class="dropdown-menu" aria-labelledby="menuAdmin">
+                <li>
+                  <a class="dropdown-item {% if request.path|slice:':7' == '/admin/' %}active{% endif %}"
+                     href="/admin/">
+                    Django Admin
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item {% if 'accounts' in request.path %}active{% endif %}"
+                     href="{% url 'accounts:dashboard' %}">
+                    Usuários
+                  </a>
+                </li>
+              </ul>
+            </li>
           {% endif %}
         </ul>
 
-        <!-- Bloco DIREITO: usuário -->
+        <!-- Bloco DIREITO: notificações + usuário -->
         <ul class="navbar-nav ms-lg-auto">
           {% if request.user.is_authenticated %}
+            <!-- 🔔 Sininho de Notificações -->
+            <li class="nav-item dropdown me-2">
+              <a class="nav-link position-relative" href="#" id="notifDropdown" role="button"
+                 data-bs-toggle="dropdown" aria-expanded="false"
+                 hx-get="{% url 'notifications:dropdown' %}"
+                 hx-trigger="click"
+                 hx-target="#notifMenu"
+                 hx-swap="innerHTML">
+                🔔
+                <span id="notifBadge"
+                      class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                      style="display:none">0</span>
+              </a>
+              <div id="notifMenu" class="dropdown-menu dropdown-menu-end"></div>
+            </li>
+
+            <!-- Usuário -->
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userMenu" role="button"
                  data-bs-toggle="dropdown" aria-expanded="false">
@@ -116,3 +141,21 @@
     </div>
   </div>
 </nav>
+
+<script>
+  async function refreshNotifCount() {
+    try {
+      const r = await fetch("{% url 'notifications:count' %}", {credentials:'same-origin'});
+      const data = await r.json();
+      const el = document.getElementById('notifBadge');
+      if (data.count > 0) {
+        el.textContent = data.count;
+        el.style.display = 'inline-block';
+      } else {
+        el.style.display = 'none';
+      }
+    } catch(e) { /* silencioso */ }
+  }
+  refreshNotifCount();
+  setInterval(refreshNotifCount, 15000); // atualiza a cada 15s
+</script>

@@ -1,0 +1,4 @@
+Olá,
+Recebemos uma nova mensagem no chamado #{{ chamado.pk }}.
+Autor: {{ autor }}
+Veja a conversa: {{ url }}

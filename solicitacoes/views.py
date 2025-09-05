@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime, timedelta
-import time
 import re
+import time
+from datetime import datetime
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -12,19 +12,31 @@ from django.db import OperationalError, transaction
 from django.db.models import Max
 from django.forms import inlineformset_factory
 from django.http import (
-    HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse,
+    HttpResponse,
+    HttpResponseBadRequest,
+    HttpResponseForbidden,
+    JsonResponse,
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .forms import (
-    ChamadoMensagemForm, NovaSolicitacaoTipoForm, PerguntaTipoSolicitacaoForm, TipoSolicitacaoForm,
+    ChamadoMensagemForm,
+    NovaSolicitacaoTipoForm,
+    PerguntaTipoSolicitacaoForm,
+    TipoSolicitacaoForm,
 )
 from .models import (
-    Chamado, ChamadoMensagem, ChamadoVista, PerguntaTipoSolicitacao,
-    RespostaChamado, SecaoVista, TipoSolicitacao,
+    Chamado,
+    ChamadoMensagem,
+    ChamadoVista,
+    PerguntaTipoSolicitacao,
+    RespostaChamado,
+    SecaoVista,
+    TipoSolicitacao,
 )
 
 # Para onde voltar após mudança de status (admins)
@@ -33,31 +45,13 @@ UPDATED_FIELD = "atualizado_em"
 
 # ----------------- helpers -----------------
 
-# views.py (coloque perto dos outros helpers)
 def _is_finalizado_status(status):
     try:
-        # se usa Choices
         return status in {Chamado.Status.CONCLUIDO, Chamado.Status.CANCELADO}
     except Exception:
-        # fallback se vier string
         s = str(status or "").strip().lower()
         return s in {"concluido", "concluído", "cancelado"}
 
-
-def _is_ajax(request):
-    return (
-        request.headers.get("X-Requested-With") == "XMLHttpRequest"
-        or request.headers.get("Hx-Request") == "true"
-        or request.GET.get("ajax") == "1"
-    )
-
-def _is_finalizado(ch):
-    """Retorna True se o chamado está finalizado (concluído ou cancelado)."""
-    try:
-        return ch.status in (Chamado.Status.CONCLUIDO, Chamado.Status.CANCELADO)
-    except Exception:
-        s = str(getattr(ch, "status", "") or "").strip().lower()
-        return s in {"concluido", "cancelado", "concluído"}
 
 
 def user_display(u):
@@ -203,10 +197,15 @@ def tipo_perguntas(request, pk):
         formset = PerguntaFormSet(instance=tipo)
 
     return render(request, "solicitacoes/tipo_perguntas.html", {"tipo": tipo, "form": form, "formset": formset})
+
 # ----------------- Meus Chamados (solicitante) -----------------
 
 @login_required
 def meus_chamados(request):
+    # ADMIN não deve acessar "Meus Chamados" (apenas superuser pode ver tudo)
+    if not request.user.is_superuser and str(getattr(request.user, "perfil", "") or "").upper() == "ADMIN":
+        return redirect("solicitacoes:gerenciar_chamados")
+
     qs_base = (
         Chamado.objects.filter(solicitante=request.user)
         .select_related("tipo")
@@ -262,7 +261,6 @@ def meus_chamados(request):
     }
     return render(request, "solicitacoes/meus_chamados.html", context)
 
-
 @login_required
 @require_POST
 def nova_solicitacao(request):
@@ -301,14 +299,12 @@ def nova_solicitacao(request):
     messages.success(request, f"Chamado #{chamado.id} aberto com sucesso!")
     return redirect("solicitacoes:meus_chamados")
 
-
 @login_required
 def form_campos_por_tipo(request, tipo_id):
     form_tmp = NovaSolicitacaoTipoForm(user=request.user)
     tipo = get_object_or_404(form_tmp.fields["tipo"].queryset, pk=tipo_id, ativo=True)
     perguntas = tipo.perguntas.filter(ativa=True).order_by("ordem", "id")
     return render(request, "solicitacoes/_campos_perguntas.html", {"tipo": tipo, "perguntas": perguntas})
-
 
 @login_required
 @require_POST
@@ -322,7 +318,7 @@ def reabrir_chamado(request, pk):
     messages.success(request, f"Chamado #{chamado.id} reaberto com sucesso!")
     return redirect("solicitacoes:meus_chamados")
 
-
+@csrf_exempt
 @login_required
 @require_POST
 def marcar_secao_vista(request):
@@ -342,7 +338,6 @@ def marcar_secao_vista(request):
                 time.sleep(0.1 * (tentativa + 1))
                 continue
             raise
-
 # ----------------- Gerenciar Chamados (Administrativo) -----------------
 
 @admin_required
@@ -420,10 +415,6 @@ def assumir_chamado(request, pk):
 
 # ----------------- Tratativa -----------------
 
-# solicitacoes/views.py
-
-from django.urls import reverse
-
 @login_required
 @require_POST
 def tratar_chamado(request, pk):
@@ -476,7 +467,6 @@ def tratar_chamado(request, pk):
             messages.success(request, f"Chamado #{chamado.id} salvo.")
         else:
             messages.info(request, "Nenhuma alteração para salvar.")
-        # permanece na página
         return redirect(reverse("solicitacoes:chamado_tratativa", args=[chamado.id]))
 
     if acao == "suspender":
@@ -502,14 +492,11 @@ def tratar_chamado(request, pk):
         messages.success(request, f"Chamado #{chamado.id} concluído.")
         return redirect(next_url)
 
-    # fallback: volta para a página do chamado
     return redirect(reverse("solicitacoes:chamado_tratativa", args=[chamado.id]))
-
 
 @login_required
 def chamado_tratativa(request, pk):
     chamado = get_object_or_404(Chamado, pk=pk)
-
     is_admin = _is_adminish(request.user)
     finalizado = _is_finalizado_status(chamado.status)
     bloquear_acoes = finalizado and (not request.user.is_superuser)
@@ -643,6 +630,7 @@ def frag_abertos(request):
 
 # ----------------- Vistos / Notificações -----------------
 
+@csrf_exempt
 @login_required
 @require_POST
 def marcar_conversa_vista(request, pk):
@@ -693,14 +681,17 @@ def api_novas_mensagens(request):
 
     return JsonResponse(out)
 
+@csrf_exempt
 @login_required
-@require_POST
 def atendimento_seen(request):
-    raw = request.POST.get('ids')
+    print("### atendimento_seen HIT:", request.method, "RAW_PATH=", request.get_full_path())
+    # resto da função...
+    raw = request.POST.get('ids') or request.GET.get('ids')
     if not raw:
         ids = request.POST.getlist('ids[]')
     else:
         ids = [x for x in re.split(r'[,\s;]+', raw) if x]
+
     ids = [int(x) for x in ids if str(x).isdigit()]
     if not ids:
         return JsonResponse({"ok": True, "count": 0})
@@ -745,3 +736,29 @@ def marcar_chamados_vistos(request):
                 time.sleep(0.1 * (tentativa + 1))
                 continue
             raise
+
+
+
+
+
+# --- VIEW INLINE (CSRF-EXEMPT) para marcar "visto" ---
+@csrf_exempt
+@login_required
+def _seen_alias(request):
+    raw = request.POST.get('ids') or request.GET.get('ids')
+    if not raw:
+        ids = request.POST.getlist('ids[]')
+    else:
+        # ✅ usa re.split, não _re.split
+        ids = [x for x in re.split(r'[,\s;]+', raw) if x]
+
+    ids = [int(x) for x in ids if str(x).isdigit()]
+    if not ids:
+        return JsonResponse({"ok": True, "count": 0})
+
+    now = timezone.now()
+    for cid in ids:
+        ChamadoVista.objects.update_or_create(
+            user=request.user, chamado_id=cid, defaults={"last_seen": now}
+        )
+    return JsonResponse({"ok": True, "count": len(ids)})

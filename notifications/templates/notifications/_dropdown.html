@@ -1,0 +1,25 @@
+<ul class="dropdown-menu dropdown-menu-end show" style="min-width:360px;">
+  {% if notifications %}
+    {% for n in notifications %}
+      <li class="px-3 py-2">
+        <div class="d-flex align-items-start gap-2 w-100">
+          <div class="flex-fill">
+            <div class="fw-semibold">{{ n.subject|default:n.kind }}</div>
+            <div class="small text-muted">{{ n.body_text|truncatechars:120 }}</div>
+            {% if n.ref_app and n.ref_model and n.ref_pk %}
+              <div class="small mt-1"><a href="/{{ n.ref_app }}/{{ n.ref_model|lower }}s/{{ n.ref_pk }}/">abrir</a></div>
+            {% endif %}
+          </div>
+
+          <form method="post" action="{% url 'notifications:mark_read' n.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Marcar lida</button>
+          </form>
+        </div>
+      </li>
+      <li><hr class="dropdown-divider"></li>
+    {% endfor %}
+  {% else %}
+    <li class="px-3 py-3 text-muted">Sem notificações</li>
+  {% endif %}
+</ul>
