@@ -1,6 +1,280 @@
 {% extends "base.html" %}
-{% block title %}Início • Enprodes Sys{% endblock %}
+{% block title %}Início · Enprodes Sys{% endblock %}
+
+{% block extra_css %}
+<style>
+  .card-metric { border: none; border-radius: .75rem; }
+  .metric { font-size: 1.75rem; font-weight: 700; }
+  .muted { color: #6c757d; }
+</style>
+{% endblock %}
+
 {% block content %}
-  <h1 class="h3">Bem-vindo! ✅</h1>
-  <p>Essa será a página principal, precisa verificar o que é interessante deixar aqui</p>
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h1 class="h4 m-0">Dashboard de Solicitações</h1>
+  <button id="btn-refresh" class="btn btn-outline-primary btn-sm">Atualizar agora</button>
+</div>
+
+{% if request.user.is_authenticated %}
+  <div class="alert alert-info py-2">
+    {% if is_manager %}
+      Você está vendo os números <strong>gerais</strong>.
+    {% else %}
+      Você está vendo os números <strong>dos seus chamados</strong>.
+    {% endif %}
+  </div>
+
+  <!-- Métricas -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-metric shadow-sm"><div class="card-body">
+        <div class="muted">Total</div><div id="m-total" class="metric">—</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-metric shadow-sm"><div class="card-body">
+        <div class="muted">Abertos</div><div id="m-abertos" class="metric">—</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-metric shadow-sm"><div class="card-body">
+        <div class="muted">Andamento</div><div id="m-andamento" class="metric">—</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-metric shadow-sm"><div class="card-body">
+        <div class="muted">Suspensos</div><div id="m-suspensos" class="metric">—</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-metric shadow-sm"><div class="card-body">
+        <div class="muted">Concluídos</div><div id="m-concluidos" class="metric">—</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card card-metric shadow-sm"><div class="card-body">
+        <div class="muted">Cancelados</div><div id="m-cancelados" class="metric">—</div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- Top 5 -->
+  <div class="card">
+    <div class="card-header">Top 5 tipos de solicitação</div>
+    <div class="card-body">
+      <canvas id="chartTopTipos" height="120"></canvas>
+    </div>
+  </div>
+
+  <!-- Filtros da Tabela -->
+  <form id="filtros" class="row g-2 align-items-end mt-3">
+    <div class="col-12 col-md-3">
+      <label class="form-label">Tipo</label>
+      <select class="form-select" id="f-tipo">
+        <option value="">Todos</option>
+        {% for t in tipos_solicitacao %}
+          <option value="{{ t.id }}">{{ t.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-3">
+      <label class="form-label">Nome do solicitante</label>
+      <input type="text" id="f-q" class="form-control" placeholder="Ex.: Maria">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label">De</label>
+      <input type="date" id="f-de" class="form-control">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label">Até</label>
+      <input type="date" id="f-ate" class="form-control">
+    </div>
+    <div class="col-12 col-md-2 d-grid">
+      <button type="button" id="btn-filtrar" class="btn btn-primary">Filtrar</button>
+    </div>
+  </form>
+
+  <!-- Tabela -->
+  <div class="card mt-3">
+    <div class="card-header d-flex justify-content-between">
+      <span>Solicitações</span>
+      <small class="text-muted" id="tbl-total"></small>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Data</th>
+              <th>Solicitante</th>
+              <th>Tipo</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbl-body">
+            <tr><td colspan="6" class="text-center py-4">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal container -->
+  <div class="modal fade" id="modalChamado" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content" id="modalChamadoContent"></div>
+    </div>
+  </div>
+
+{% else %}
+  <div class="alert alert-warning">Entre para ver seu painel.</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<script>
+  {% if request.user.is_authenticated %}
+  const URL_DATA  = "{% url 'solicitacoes:dashboard-data' %}";
+  const URL_TABLE = "{% url 'solicitacoes:dashboard-table' %}";
+  const URL_MODAL_PATTERN = "{% url 'solicitacoes:chamado-modal' 0 %}"; // usaremos replace
+  let chartTipos = null;
+
+  // --- Dashboard (cards + gráfico) ---
+  async function fetchData() {
+    const r = await fetch(URL_DATA, { headers: { "X-Requested-With": "XMLHttpRequest" }});
+    if (!r.ok) throw new Error("Falha ao carregar dados do dashboard");
+    return r.json();
+  }
+
+  function setMetric(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function renderCards(cards) {
+    setMetric("m-total", cards.total);
+    setMetric("m-abertos", cards.abertos);
+    setMetric("m-andamento", cards.andamento);
+    setMetric("m-suspensos", cards.suspensos);
+    setMetric("m-concluidos", cards.concluidos);
+    setMetric("m-cancelados", cards.cancelados);
+  }
+
+  function renderChartTopTipos(top) {
+    const canvas = document.getElementById("chartTopTipos");
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    const data = { labels: top.labels, datasets: [{ label: "Qtde", data: top.values }] };
+
+    if (!chartTipos) {
+      Chart.register(ChartDataLabels);
+      chartTipos = new Chart(ctx, {
+        type: "bar",
+        data,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            datalabels: {
+              anchor: "end",
+              align: "top",
+              formatter: (v) => v,
+              font: { weight: "bold" }
+            }
+          },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+      });
+    } else {
+      chartTipos.data = data;
+      chartTipos.update();
+    }
+  }
+
+  async function refreshDashboard() {
+    try {
+      const data = await fetchData();
+      renderCards(data.cards);
+      renderChartTopTipos(data.top_tipos);
+    } catch (e) { console.error(e); }
+  }
+
+  document.getElementById("btn-refresh")?.addEventListener("click", refreshDashboard);
+
+  // --- Tabela (com filtros) ---
+  async function loadTable(page = 1) {
+    const params = new URLSearchParams({
+      page,
+      page_size: 50,
+      q:   document.getElementById("f-q").value.trim(),
+      tipo: document.getElementById("f-tipo").value,
+      de:  document.getElementById("f-de").value,
+      ate: document.getElementById("f-ate").value,
+    });
+
+    const r = await fetch(`${URL_TABLE}?${params.toString()}`, {
+      headers: { "X-Requested-With": "XMLHttpRequest" }
+    });
+    const data = await r.json();
+
+    const tbody = document.getElementById("tbl-body");
+    tbody.innerHTML = "";
+
+    if (!data.rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4">Nenhum registro</td></tr>';
+    } else {
+      for (const row of data.rows) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.id}</td>
+          <td>${row.data}</td>
+          <td>${row.solicitante}</td>
+          <td>${row.tipo}</td>
+          <td>${row.status}</td>
+          <td>
+            <button type="button" class="btn btn-sm btn-outline-primary btn-open" data-id="${row.id}">
+              abrir
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+    document.getElementById("tbl-total").textContent = `${data.total} registros`;
+  }
+
+  document.getElementById("btn-filtrar")?.addEventListener("click", () => loadTable(1));
+
+  // --- Modal ---
+  async function openChamadoModal(id) {
+    const url = URL_MODAL_PATTERN.replace("/0/", `/${id}/`);
+    const r = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" }});
+    if (!r.ok) return;
+
+    const data = await r.json();
+    const cont = document.getElementById("modalChamadoContent");
+    cont.innerHTML = data.html;
+
+    const modalEl = document.getElementById("modalChamado");
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  }
+
+  // delegação: botão “abrir” na tabela
+  document.getElementById("tbl-body").addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn-open");
+    if (btn) openChamadoModal(btn.dataset.id);
+  });
+
+  // inicializa
+  refreshDashboard();
+  setInterval(refreshDashboard, 60000);
+  loadTable();
+  {% endif %}
+</script>
 {% endblock %}

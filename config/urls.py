@@ -1,3 +1,4 @@
+# config/urls.py
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
@@ -7,17 +8,22 @@ from django.conf.urls.static import static
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 
-# Forms de autenticação
 from accounts.forms import CPFAuthenticationForm, PrettyPasswordChangeForm
-
+from solicitacoes.models import TipoSolicitacao   # ⬅️ add
 
 def health(_):
     return HttpResponse("ok")
 
-
 @login_required
 def home(request):
-    return render(request, "home.html")  # templates/home.html
+    is_manager = (
+        request.user.is_superuser
+        or getattr(request.user, "perfil", "") == "ADMIN"
+        or request.user.groups.filter(name="Gestor").exists()
+    )
+    tipos = list(TipoSolicitacao.objects.order_by("nome").values("id", "nome"))
+    return render(request, "home.html", {"is_manager": is_manager, "tipos_solicitacao": tipos})
+
 
 
 urlpatterns = [

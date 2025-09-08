@@ -1,0 +1,91 @@
+{# templates/solicitacoes/_chamado_modal.html #}
+
+<div class="modal-header">
+  <h5 class="modal-title">
+    Chamado #{{ c.id }} — {{ c.tipo.nome|default:"Sem tipo" }}
+  </h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+</div>
+
+<div class="modal-body">
+  <dl class="row mb-0">
+
+    <dt class="col-sm-3">Aberto por</dt>
+    <dd class="col-sm-9">
+      {% firstof c.solicitante.nome_completo c.solicitante.cpf "—" %}
+    </dd>
+
+    <dt class="col-sm-3">Tipo</dt>
+    <dd class="col-sm-9">{{ c.tipo.nome|default:"Sem tipo" }}</dd>
+
+    <dt class="col-sm-3">Status</dt>
+    <dd class="col-sm-9">
+      {% with s=c.status %}
+        {% if s == 'ABERTO' %}
+          <span class="badge bg-secondary">Aberto</span>
+        {% elif s == 'EM_ANDAMENTO' %}
+          <span class="badge bg-info text-dark">Em andamento</span>
+        {% elif s == 'SUSPENSO' %}
+          <span class="badge bg-warning text-dark">Suspenso</span>
+        {% elif s == 'CONCLUIDO' or s == 'CONCLUÍDO' %}
+          <span class="badge bg-success">Concluído</span>
+        {% elif s == 'CANCELADO' %}
+          <span class="badge bg-danger">Cancelado</span>
+        {% else %}
+          <span class="badge bg-light text-dark">
+            {% if c.get_status_display %}{{ c.get_status_display }}{% else %}{{ c.status|default:"—" }}{% endif %}
+          </span>
+        {% endif %}
+      {% endwith %}
+    </dd>
+
+    <dt class="col-sm-3">Aberto em</dt>
+    <dd class="col-sm-9">
+      {% if c.aberto_em %}{{ c.aberto_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}
+    </dd>
+
+    {% if c.atualizado_em %}
+      <dt class="col-sm-3">Atualizado em</dt>
+      <dd class="col-sm-9">{{ c.atualizado_em|date:"d/m/Y H:i" }}</dd>
+    {% endif %}
+
+    {% if c.setor %}
+      <dt class="col-sm-3">Setor</dt>
+      <dd class="col-sm-9">{{ c.setor }}</dd>
+    {% endif %}
+
+    {% if c.assunto %}
+      <dt class="col-sm-3">Assunto</dt>
+      <dd class="col-sm-9">{{ c.assunto }}</dd>
+    {% endif %}
+
+    {% if c.atendente_nome %}
+      <dt class="col-sm-3">Atendente</dt>
+      <dd class="col-sm-9">{{ c.atendente_nome }}</dd>
+    {% endif %}
+
+    {% if c.descricao %}
+      <dt class="col-sm-3">Descrição</dt>
+      <dd class="col-sm-9">
+        <div class="border rounded p-2" style="white-space:pre-wrap">{{ c.descricao }}</div>
+      </dd>
+    {% endif %}
+  </dl>
+
+  {% if qa %}
+    <hr class="my-3">
+    <h6 class="mb-2">Perguntas & respostas</h6>
+    <ul class="list-group list-group-flush">
+      {% for item in qa %}
+        <li class="list-group-item px-0">
+          <div class="fw-semibold">{{ item.q }}</div>
+          <div>{{ item.a }}</div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+</div>

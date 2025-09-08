@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Enprodes Sys{% endblock %}
+
+{% block extra_css %}
+<style>
+  .card-metric { border: none; border-radius: .75rem; }
+  .metric { font-size: 1.75rem; font-weight: 700; }
+  .muted { color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h1 class="h3 m-0">Dashboard de Solicitações</h1>
+  <button id="btn-refresh" class="btn btn-outline-primary btn-sm">Atualizar agora</button>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card card-metric shadow-sm">
+      <div class="card-body">
+        <div class="muted">Total</div>
+        <div id="m-total" class="metric">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card card-metric shadow-sm">
+      <div class="card-body">
+        <div class="muted">Abertos</div>
+        <div id="m-abertos" class="metric">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card card-metric shadow-sm">
+      <div class="card-body">
+        <div class="muted">Andamento</div>
+        <div id="m-andamento" class="metric">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card card-metric shadow-sm">
+      <div class="card-body">
+        <div class="muted">Suspensos</div>
+        <div id="m-suspensos" class="metric">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card card-metric shadow-sm">
+      <div class="card-body">
+        <div class="muted">Concluídos</div>
+        <div id="m-concluidos" class="metric">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card card-metric shadow-sm">
+      <div class="card-body">
+        <div class="muted">Cancelados</div>
+        <div id="m-cancelados" class="metric">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Top 5 tipos de solicitação -->
+<div class="card mt-3">
+  <div class="card-header">Top 5 tipos de solicitação</div>
+  <div class="card-body">
+    <canvas id="chartTopTipos" height="120"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js (apenas uma vez) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+  const URL_DATA = "{% url 'solicitacoes:dashboard_data' %}";
+  let chartTipos = null;
+
+  async function fetchData() {
+    const r = await fetch(URL_DATA, {
+      headers: { "X-Requested-With": "XMLHttpRequest" }
+    });
+    if (!r.ok) throw new Error("Falha ao carregar dados do dashboard");
+    return r.json();
+  }
+
+  function setMetric(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function renderCards(cards) {
+    setMetric("m-total", cards.total);
+    setMetric("m-abertos", cards.abertos);
+    setMetric("m-andamento", cards.andamento);
+    setMetric("m-suspensos", cards.suspensos);
+    setMetric("m-concluidos", cards.concluidos);
+    setMetric("m-cancelados", cards.cancelados);
+  }
+
+  function renderChartTopTipos(top) {
+    const canvas = document.getElementById("chartTopTipos");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+
+    const data = {
+      labels: top.labels || [],
+      datasets: [{
+        label: "Qtde",
+        data: top.values || [],
+      }]
+    };
+
+    if (chartTipos) {
+      chartTipos.data = data;
+      chartTipos.update();
+      return;
+    }
+
+    chartTipos = new Chart(ctx, {
+      type: "bar",
+      data,
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  }
+
+  async function refreshDashboard() {
+    try {
+      const data = await fetchData();
+      renderCards(data.cards);
+      renderChartTopTipos(data.top_tipos); // mantém snake_case conforme view
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  document.getElementById("btn-refresh").addEventListener("click", refreshDashboard);
+
+  // primeiro carregamento + auto-refresh a cada 60s
+  refreshDashboard();
+  setInterval(refreshDashboard, 60000);
+</script>
+{% endblock %}

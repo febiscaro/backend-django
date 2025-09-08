@@ -22,6 +22,53 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q, Count
+from django.http import JsonResponse
+from django.shortcuts import render
+# solicitacoes/views.py
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.db.models import Count
+from django.utils.timezone import now
+from datetime import timedelta
+
+from .models import Chamado
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+from django.http import JsonResponse
+from django.urls import reverse
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+from django.http import JsonResponse
+from django.urls import reverse
+
+from django.http import JsonResponse, Http404
+from django.template.loader import render_to_string
+from django.views.decorators.http import require_GET
+from django.shortcuts import get_object_or_404
+
+# --- imports (no topo do solicitacoes/views.py) ---
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse, HttpResponseForbidden
+from django.shortcuts import get_object_or_404
+from django.template.loader import render_to_string
+from django.views.decorators.http import require_http_methods
+
+from .models import Chamado  # ajuste se seu caminho for diferente
+# solicitacoes/views.py
+from django.http import JsonResponse, Http404
+from django.template.loader import render_to_string
+from django.views.decorators.http import require_GET
+from django.contrib.auth.decorators import login_required
+
+
+
+
+
+
+
+
 
 from .forms import (
     ChamadoMensagemForm,
@@ -762,3 +809,252 @@ def _seen_alias(request):
             user=request.user, chamado_id=cid, defaults={"last_seen": now}
         )
     return JsonResponse({"ok": True, "count": len(ids)})
+
+
+
+
+
+
+
+# views do dashboard solicitações
+# solicitacoes/views.py
+
+
+
+@login_required
+def dashboard(request):
+    """
+    Renderiza a página do dashboard.
+    O gráfico e cards carregam dados via /solicitacoes/dashboard/data/
+    """
+    return render(request, "solicitacoes/dashboard.html")
+
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q
+
+from .models import Chamado
+
+
+def _count_status(qs, *member_names: str) -> int:
+    """
+    Conta itens por status, aceitando múltiplos nomes de membro do Enum/Choices.
+    Ex.: _count_status(qs, "ANDAMENTO", "EM_ANDAMENTO")
+    """
+    vals = []
+    for name in member_names:
+        val = getattr(Chamado.Status, name, None)
+        if val is not None:
+            vals.append(val)
+    return qs.filter(status__in=vals).count() if vals else 0
+
+
+
+
+@login_required
+def dashboard_data(request):
+    user = request.user
+
+    # Quem enxerga geral?
+    is_manager = (
+        user.is_superuser
+        or user.groups.filter(name__in=["Gestor"]).exists()
+        # se você quiser que ADMIN (perfil) também veja geral, mantenha a linha abaixo:
+        or getattr(user, "perfil", "") == "ADMIN"
+    )
+
+    # Escopo dos dados
+    qs = Chamado.objects.all() if is_manager else Chamado.objects.filter(solicitante=user)
+
+    # --- métricas por status (ajuste para seus enums reais) ---
+    abertos      = qs.filter(status=Chamado.Status.ABERTO).count()
+    andamento    = qs.filter(status=Chamado.Status.EM_ANDAMENTO).count()
+    suspensos    = qs.filter(status=Chamado.Status.SUSPENSO).count()
+    concluidos   = qs.filter(status=Chamado.Status.CONCLUIDO).count()
+    cancelados   = qs.filter(status=Chamado.Status.CANCELADO).count()
+    total        = qs.count()
+
+    # --- top 5 tipos ---
+    top_tipos_qs = (
+        qs.values("tipo__nome")
+          .annotate(qtd=Count("id"))
+          .order_by("-qtd")[:5]
+    )
+    top_tipos_labels = [ (row["tipo__nome"] or "Sem tipo") for row in top_tipos_qs ]
+    top_tipos_values = [ row["qtd"] for row in top_tipos_qs ]
+
+    data = {
+        "cards": {
+            "total": total,
+            "abertos": abertos,
+            "andamento": andamento,
+            "suspensos": suspensos,
+            "concluidos": concluidos,
+            "cancelados": cancelados,
+        },
+        "top_tipos": {
+            "labels": top_tipos_labels,
+            "values": top_tipos_values,
+        },
+    }
+    return JsonResponse(data)
+
+
+
+
+
+
+
+@login_required
+def dashboard_table(request):
+    user = request.user
+    is_manager = (
+        user.is_superuser
+        or getattr(user, "perfil", "") == "ADMIN"
+        or user.groups.filter(name="Gestor").exists()
+    )
+
+    qs = Chamado.objects.select_related("tipo", "solicitante")
+    if not is_manager:
+        qs = qs.filter(solicitante=user)
+
+    # filtros
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        qs = qs.filter(
+            Q(solicitante__nome_completo__icontains=q)
+            | Q(solicitante__first_name__icontains=q)
+            | Q(solicitante__last_name__icontains=q)
+            | Q(solicitante__username__icontains=q)
+        )
+
+    tipo = request.GET.get("tipo")
+    if tipo:
+        qs = qs.filter(tipo_id=tipo)
+
+    de = request.GET.get("de")
+    ate = request.GET.get("ate")
+    if de:
+        qs = qs.filter(criado_em__date__gte=de)
+    if ate:
+        qs = qs.filter(criado_em__date__lte=ate)
+
+    qs = qs.order_by("-criado_em")  # <-- aqui
+
+    # paginação
+    page = int(request.GET.get("page", 1))
+    page_size = int(request.GET.get("page_size", 50))
+    start, end = (page - 1) * page_size, (page - 1) * page_size + page_size
+
+    total = qs.count()
+    rows = []
+    for c in qs[start:end]:
+        try:
+            link = reverse("solicitacoes:chamado_tratativa", args=[c.pk])
+        except Exception:
+            link = ""
+
+        s = getattr(c, "solicitante", None)
+        solicitante = "-"
+        if s:
+            solicitante = getattr(s, "nome_completo", None) or s.get_full_name() or str(s)
+
+        rows.append({
+            "id": c.pk,
+            "data": c.criado_em.strftime("%d/%m/%Y %H:%M"),  # <-- aqui
+            "solicitante": solicitante,
+            "tipo": getattr(getattr(c, "tipo", None), "nome", "-"),
+            "status": c.get_status_display(),
+            "link": link,
+        })
+
+    return JsonResponse({"rows": rows, "total": total})
+
+# --- helper: quem é "gestor" / pode ver tudo ---
+def _is_manager(user) -> bool:
+    """
+    Retorna True se o usuário pode ver o panorama geral:
+    - superusuário
+    - perfil ADMIN (se você usa esse campo)
+    - pertence a algum grupo 'Gestor'
+    """
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False):
+        return True
+    if getattr(user, "perfil", "") == "ADMIN":
+        return True
+    return user.groups.filter(name="Gestor").exists()
+
+
+
+@login_required
+@require_GET
+def chamado_modal(request, pk: int):
+    from .models import Chamado  # ajuste se seu import for diferente
+
+    try:
+        ch = (
+            Chamado.objects
+            .select_related("tipo", "solicitante")  # 'atendente' não existe: removido
+            .get(pk=pk)
+        )
+    except Chamado.DoesNotExist:
+        raise Http404("Chamado não encontrado")
+
+    # ---- Normaliza Perguntas & Respostas em uma lista "qa" ----
+    qa = []
+
+    def _get(obj, *names):
+        """Tenta pegar o primeiro atributo existente/não vazio de obj."""
+        for n in names:
+            if hasattr(obj, n):
+                val = getattr(obj, n)
+                if callable(val):
+                    try:
+                        val = val()
+                    except Exception:
+                        pass
+                if val not in (None, ""):
+                    return val
+        return None
+
+    # tenta detectar o related das respostas (um dos nomes abaixo)
+    related_names = [
+        "respostas",                # se você nomeou assim
+        "respostas_chamado",        # variação comum
+        "respostachamado_set",      # nome reverso padrão do Django
+        "respostaset",              # só por precaução
+    ]
+
+    resp_qs = None
+    for rel in related_names:
+        if hasattr(ch, rel):
+            try:
+                resp_qs = getattr(ch, rel).all()
+            except Exception:
+                resp_qs = None
+            if resp_qs is not None:
+                break
+
+    if resp_qs:
+        for r in resp_qs:
+            # Pega o objeto da pergunta em diferentes nomes possíveis
+            p = _get(r,
+                     "pergunta", "pergunta_tipo", "pergunta_tiposolicitacao",
+                     "pergunta_tipo_solicitacao", "pergunta_obj")
+
+            # Texto da pergunta (tentando vários campos típicos)
+            q_txt = _get(p, "titulo", "texto", "label", "nome", "descricao", "descricao_curta") or "Pergunta"
+
+            # Valor/resposta em diferentes campos
+            a_txt = _get(r, "valor", "resposta", "texto", "valor_texto", "conteudo") or "—"
+
+            qa.append({"q": q_txt, "a": a_txt})
+
+    html = render_to_string(
+        "solicitacoes/_chamado_modal.html",
+        {"c": ch, "qa": qa},  # <-- envia a lista pronta
+        request=request,
+    )
+    return JsonResponse({"html": html})
