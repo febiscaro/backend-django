@@ -48,7 +48,6 @@ urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"),
     path("dashboard/data/", views.dashboard_data, name="dashboard-data"),
     path("dashboard/table/", views.dashboard_table, name="dashboard-table"),
-    path("dashboard/table/", views.dashboard_table, name="dashboard-table"),
     path("chamados/<int:pk>/modal/", views.chamado_modal, name="chamado-modal"),
     
 
