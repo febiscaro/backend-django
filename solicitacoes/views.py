@@ -55,7 +55,7 @@ from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods
 
-from .models import Chamado  # ajuste se seu caminho for diferente
+from .models import Chamado  # ajuste se seu caminho for diferentea
 # solicitacoes/views.py
 from django.http import JsonResponse, Http404
 from django.template.loader import render_to_string
