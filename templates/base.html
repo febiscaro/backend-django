@@ -19,7 +19,7 @@
 
     .card-header { border-radius:.5rem .5rem 0 0; }
 
-    /* Mensagens fixas no topo, acima do conteúdo */
+    /* Mensagens fixas no topo */
     .flash-wrap{
       position: sticky;
       top: 0;
@@ -27,20 +27,8 @@
     }
   </style>
 
-  <!-- Seu CSS -->
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   {% block extra_css %}{% endblock %}
-
-  <!-- CSRF meta para HTMX e AJAX -->
-  <meta name="csrf-token" content="{{ csrf_token }}">
-  <script>
-    document.addEventListener("htmx:configRequest", (e) => {
-      const token = document.querySelector('meta[name="csrf-token"]').content;
-      if (token) {
-        e.detail.headers['X-CSRFToken'] = token;
-      }
-    });
-  </script>
 </head>
 
 <body class="bg-body-tertiary">
@@ -48,7 +36,7 @@
     {% include "includes/_navbar.html" %}
   {% endif %}
 
-  {# ==== MENSAGENS (Django messages) ==== #}
+  {# ==== MENSAGENS ==== #}
   {% if messages %}
     <div class="flash-wrap container mt-3">
       {% for message in messages %}
@@ -90,9 +78,80 @@
 
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
   <!-- HTMX -->
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <!-- Seu JS -->
+
+  <!-- CSRF para HTMX via cookie -->
+  <script>
+    (function () {
+      function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+      }
+      document.addEventListener('htmx:configRequest', function (e) {
+        const token = getCookie('csrftoken');
+        if (token) e.detail.headers['X-CSRFToken'] = token;
+      });
+    })();
+  </script>
+
+  <!-- Auto-fecha as alerts depois de 4s (opcional) -->
+  <script>
+    setTimeout(function () {
+      document.querySelectorAll('.alert').forEach(function (el) {
+        try { bootstrap.Alert.getOrCreateInstance(el).close(); } catch (e) {}
+      });
+    }, 4000);
+  </script>
+
+  <!-- Proteção global: double-submit + token idem -->
+  <script>
+    (function () {
+      function rndHex(bytes = 16) {
+        if (window.crypto && crypto.getRandomValues) {
+          const a = new Uint8Array(bytes);
+          crypto.getRandomValues(a);
+          return Array.from(a, b => ('0' + b.toString(16)).slice(-2)).join('');
+        }
+        return (Date.now().toString(36) + Math.random().toString(36).slice(2));
+      }
+
+      document.addEventListener('submit', function (ev) {
+        const form = ev.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        if (!form.matches('form[data-submit-once]')) return;
+
+        // já submetido? cancela
+        if (form.dataset.submitted === '1') {
+          ev.preventDefault();
+          return false;
+        }
+        form.dataset.submitted = '1';
+
+        // injeta token idem (se a view usar)
+        if (!form.querySelector('input[name="idem"]')) {
+          const hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = 'idem';
+          hidden.value = rndHex(16);
+          form.appendChild(hidden);
+        }
+
+        // desabilita botões e mostra feedback
+        const submits = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+        submits.forEach(btn => {
+          btn.disabled = true;
+          if (btn.tagName === 'BUTTON') {
+            btn.dataset.originalHtml = btn.innerHTML;
+            btn.innerHTML = 'Enviando…';
+          }
+        });
+      });
+    })();
+  </script>
+
   <script src="{% static 'js/app.js' %}"></script>
   {% block extra_js %}{% endblock %}
 </body>

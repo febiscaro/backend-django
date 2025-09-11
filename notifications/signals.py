@@ -10,17 +10,15 @@ from notifications.models import Notification
 from solicitacoes.models import Chamado, ChamadoMensagem
 
 
-# --------- helpers ---------
 def _as_body_html(text: str) -> str:
-    # preserva quebras de linha simples
     return f"<p>{escape(text).replace(chr(10), '<br>')}</p>"
 
-def _notify_web(to_emails, subject: str, body: str, ref_app: str, ref_model: str, ref_pk):
+def _notify_web_by_emails(to_emails, subject: str, body: str, *, ref_app: str, ref_model: str, ref_pk):
     """
-    Cria itens de Notification (canal 'web') para alimentar o sininho.
-    Funciona mesmo sem campos to_user/read_at.
+    Cria itens Notification (canal 'web') para o sininho.
     """
     for mail in (to_emails or []):
+        mail = (mail or "").strip()
         if not mail:
             continue
         Notification.objects.create(
@@ -28,18 +26,15 @@ def _notify_web(to_emails, subject: str, body: str, ref_app: str, ref_model: str
             subject=subject,
             body_text=body,
             body_html=_as_body_html(body),
-            to_email=mail,
+            to_email=mail,       # <- SEM to_user
             channel="web",
             ref_app=ref_app,
             ref_model=ref_model,
             ref_pk=str(ref_pk),
-            is_sent=True,  # apenas p/ diferenciar de envio de e-mail
+            is_sent=True,        # marca que “foi gerada” (não é e-mail)
         )
 
-
 # 1) NOVO CHAMADO
-#    - E-mail para admin-ish
-#    - Sininho para solicitante E para admin-ish (foi o que faltou p/ o Administrativo ver)
 @receiver(post_save, sender=Chamado)
 def on_chamado_created(sender, instance: Chamado, created: bool, **kwargs):
     if not created:
@@ -55,35 +50,24 @@ def on_chamado_created(sender, instance: Chamado, created: bool, **kwargs):
         f"Link: /solicitacoes/chamados/{instance.id}/\n"
     )
 
+    # admins
     admin_emails = emails(users_adminish())
-
-    # e-mail para administradores
-    send_simple_email(subject, body, admin_emails)
-
-    # sininho do solicitante
-    solicitante_email = getattr(instance.solicitante, "email", None)
-    if solicitante_email:
-        _notify_web(
-            [solicitante_email], subject, body,
-            ref_app="solicitacoes", ref_model="Chamado", ref_pk=instance.id
-        )
-
-    # sininho dos administradores (isto habilita o badge/itens p/ o perfil Administrativo)
     if admin_emails:
-        _notify_web(
+        send_simple_email(subject, body, admin_emails)
+        _notify_web_by_emails(
             admin_emails, subject, body,
             ref_app="solicitacoes", ref_model="Chamado", ref_pk=instance.id
         )
 
+    # solicitante
+    solicitante_email = (getattr(instance.solicitante, "email", "") or "").strip()
+    if solicitante_email:
+        _notify_web_by_emails(
+            [solicitante_email], subject, body,
+            ref_app="solicitacoes", ref_model="Chamado", ref_pk=instance.id
+        )
 
-# 2) NOVA MENSAGEM
-#    Notifica SEMPRE a "outra parte":
-#    - Se há atendente:
-#        * autor = atendente  -> notifica solicitante
-#        * autor = solicitante -> notifica atendente
-#    - Se NÃO há atendente:
-#        * autor = solicitante -> notifica admin-ish
-#        * autor = admin-ish/qualquer -> notifica solicitante
+# 2) NOVA MENSAGEM (pública)
 @receiver(post_save, sender=ChamadoMensagem)
 def on_chamado_nova_mensagem(sender, instance: ChamadoMensagem, created: bool, **kwargs):
     if not created:
@@ -91,7 +75,6 @@ def on_chamado_nova_mensagem(sender, instance: ChamadoMensagem, created: bool, *
 
     ch = instance.chamado
 
-    # respeita lógica de mensagens públicas
     vis_publica = getattr(ChamadoMensagem, "PUBLICA", "publica")
     if getattr(instance, "visibilidade", vis_publica) != vis_publica:
         return
@@ -103,45 +86,40 @@ def on_chamado_nova_mensagem(sender, instance: ChamadoMensagem, created: bool, *
         f"Link: /solicitacoes/chamados/{ch.id}/\n"
     )
 
-    solicitante_email = getattr(ch.solicitante, "email", None)
+    solicitante_email = (getattr(ch.solicitante, "email", "") or "").strip()
     atendente = get_atendente_user(ch)
-    atendente_email = getattr(atendente, "email", None) if atendente else None
+    atendente_email = (getattr(atendente, "email", "") or "").strip() if atendente else ""
     autor_id = getattr(instance.autor, "id", None)
 
     if atendente:
-        # há atendente designado
         if autor_id == getattr(atendente, "id", None):
-            # quem escreveu foi o atendente -> notifica solicitante
+            # atendente escreveu -> notifica solicitante
             if solicitante_email:
                 send_simple_email(subject, body, [solicitante_email])
-                _notify_web([solicitante_email], subject, body,
-                            ref_app="solicitacoes", ref_model="Chamado", ref_pk=ch.id)
+                _notify_web_by_emails([solicitante_email], subject, body,
+                                      ref_app="solicitacoes", ref_model="Chamado", ref_pk=ch.id)
         else:
-            # quem escreveu foi o solicitante (ou outro) -> notifica atendente
+            # solicitante (ou outro) escreveu -> notifica atendente
             if atendente_email:
                 send_simple_email(subject, body, [atendente_email])
-                _notify_web([atendente_email], subject, body,
-                            ref_app="solicitacoes", ref_model="Chamado", ref_pk=ch.id)
+                _notify_web_by_emails([atendente_email], subject, body,
+                                      ref_app="solicitacoes", ref_model="Chamado", ref_pk=ch.id)
         return
 
-    # sem atendente ainda
+    # sem atendente: se autor é solicitante -> notifica admin-ish, senão -> notifica solicitante
     admin_emails = emails(users_adminish())
-
-    # se autor é solicitante -> notifica admin-ish
     if autor_id == getattr(ch.solicitante, "id", None):
         if admin_emails:
             send_simple_email(subject, body, admin_emails)
-            _notify_web(admin_emails, subject, body,
-                        ref_app="solicitacoes", ref_model="Chamado", ref_pk=ch.id)
+            _notify_web_by_emails(admin_emails, subject, body,
+                                  ref_app="solicitacoes", ref_model="Chamado", ref_pk=ch.id)
     else:
-        # autor não é solicitante -> notifica solicitante (se houver e-mail)
         if solicitante_email:
             send_simple_email(subject, body, [solicitante_email])
-            _notify_web([solicitante_email], subject, body,
-                        ref_app="solicitacoes", ref_model="Chamado", ref_pk=ch.id)
+            _notify_web_by_emails([solicitante_email], subject, body,
+                                  ref_app="solicitacoes", ref_model="Chamado", ref_pk=ch.id)
 
-
-# 3) MUDANÇA DE STATUS → e-mail + sininho para solicitante
+# 3) MUDANÇA DE STATUS -> e-mail + sininho para solicitante
 @receiver(pre_save, sender=Chamado)
 def _capture_old_status(sender, instance: Chamado, **kwargs):
     if not instance.pk:
@@ -151,7 +129,6 @@ def _capture_old_status(sender, instance: Chamado, **kwargs):
         instance.__old_status = old.status
     except sender.DoesNotExist:
         pass
-
 
 @receiver(post_save, sender=Chamado)
 def on_chamado_status_changed(sender, instance: Chamado, created: bool, **kwargs):
@@ -171,8 +148,8 @@ def on_chamado_status_changed(sender, instance: Chamado, created: bool, **kwargs
         f"Link: /solicitacoes/chamados/{instance.id}/\n"
     )
 
-    destinatario = getattr(instance.solicitante, "email", None)
+    destinatario = (getattr(instance.solicitante, "email", "") or "").strip()
     if destinatario:
         send_simple_email(subject, body, [destinatario])
-        _notify_web([destinatario], subject, body,
-                    ref_app="solicitacoes", ref_model="Chamado", ref_pk=instance.id)
+        _notify_web_by_emails([destinatario], subject, body,
+                              ref_app="solicitacoes", ref_model="Chamado", ref_pk=instance.id)

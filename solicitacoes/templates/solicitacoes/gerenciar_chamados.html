@@ -368,181 +368,203 @@
     </div>
   </div>
 
-  <!-- Em andamento -->
-  <div class="glass mb-3">
-    <div class="section-head andamento collapsed" data-bs-toggle="collapse" data-bs-target="#secAnd" aria-expanded="false" id="headAnd">
-      <svg class="toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
-      <h3>Em andamento</h3>
-      {% with n=novos.andamento|default:0 %}
-      <span class="counter">
-        <span class="num {% if n %}pulse{% endif %}">{{ andamento.paginator.count }}</span>
-        {% if n %}<small class="opacity-75">+{{ n }} novo(s)</small>{% endif %}
-      </span>
-      {% endwith %}
-      <div class="head-actions">
-        <span class="small opacity-75 d-none d-sm-inline">Por página</span>
-        <select class="form-select form-select-sm" onchange="location.href='?{{ qs_and }}&ps_and='+this.value">
-          <option value="2"  {% if ps_and == 2 %}selected{% endif %}>2</option>
-          <option value="5"  {% if ps_and == 5 %}selected{% endif %}>5</option>
-          <option value="10" {% if ps_and == 10 %}selected{% endif %}>10</option>
-          <option value="15" {% if ps_and == 15 %}selected{% endif %}>15</option>
-          <option value="20" {% if ps_and == 20 %}selected{% endif %}>20</option>
-        </select>
-        <button class="btn btn-soft btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#secAnd">
-          <span class="me-1">Ver mais</span>
-          <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
-        </button>
-      </div>
-    </div>
-
-    <div id="secAnd" class="collapse section-body" data-section-key="secAnd">
-      <div class="table-responsive d-none d-md-block">
-        <table class="table table-sm table-striped table-hover align-middle mb-0">
-          <thead class="table-light">
-          <tr>
-            <th style="width:70px">#</th>
-            <th>Tipo</th>
-            <th>Solicitante</th>
-            <th>Status</th>
-            <th>Atendente</th>
-            <th style="width:180px">Criado</th>
-            <th>Tratativa</th>
-            <th style="width:180px">Anexos</th>
-            <th style="width:140px">Gerenciar</th>
-          </tr>
-          </thead>
-          <tbody>
-          {% for c in andamento %}
-            <tr data-chamado-id="{{ c.id }}">
-              <td>
-                #{{ c.id }}
-                <span class="badge badge-new bg-danger ms-1 d-none" id="m-new-d-{{ c.id }}"></span>
-              </td>
-              <td>{{ c.tipo.nome }}</td>
-              <td>{{ c.solicitante|default:"—" }}</td>
-              <td><span class="badge bg-warning text-dark">Em andamento</span></td>
-              <td>{{ c.atendente_nome|default:"—" }}</td>
-              <td>{{ c.criado_em|date:"d/m/Y H:i" }}</td>
-              <td class="text-break">{{ c.tratativa_adm|default:"—"|truncatechars:120 }}</td>
-              <td>
-                {% with files=c.respostas.all %}
-                  {% if files %}
-                    {% for f in files %}
-                      {% if f.valor_arquivo %}
-                        <a href="{{ f.valor_arquivo.url }}" class="btn btn-outline-secondary btn-sm me-1" target="_blank" title="{{ f.pergunta.texto|default:'Anexo' }}">📎 {{ forloop.counter }}</a>
-                      {% endif %}
-                    {% endfor %}
-                  {% else %}<span class="text-muted">—</span>{% endif %}
-                {% endwith %}
-                {% if c.anexo_adm %}
-                  <a href="{{ c.anexo_adm.url }}" class="btn btn-outline-dark btn-sm mt-1" target="_blank" title="Anexo da tratativa">📎 Tratativa</a>
-                {% endif %}
-              </td>
-              <td><a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-sm btn-outline-primary">Gerenciar</a></td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="9" class="text-muted text-center">Nenhum chamado.</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="d-md-none p-2">
-        {% for c in andamento %}
-          <div class="glass p-2 mb-2" data-chamado-id="{{ c.id }}">
-            <div class="d-flex justify-content-between">
-              <div class="fw-semibold">{{ c.tipo.nome }}</div>
-              <span class="badge rounded-pill bg-warning text-dark">Em andamento</span>
-            </div>
-            <div class="small text-muted mt-1">
-              #{{ c.id }}
-              <span class="badge badge-new bg-danger ms-1 d-none" id="m-new-m-{{ c.id }}"></span>
-              • {{ c.criado_em|date:"d/m/Y H:i" }}
-            </div>
-            <div class="small mt-1"><span class="text-muted">Solicitante:</span> {{ c.solicitante|default:"—" }}</div>
-            <div class="small mt-1"><span class="text-muted">Atendente:</span> {{ c.atendente_nome|default:"—" }}</div>
-            {% if c.tratativa_adm %}<div class="small mt-1 text-break"><span class="text-muted">Tratativa:</span> {{ c.tratativa_adm|truncatechars:90 }}</div>{% endif %}
-            {% with files=c.respostas.all %}
-              {% if files %}
-                <div class="small mt-2">
-                  <span class="text-muted">Anexos:</span>
-                  {% for f in files %}
-                    {% if f.valor_arquivo %}
-                      <a href="{{ f.valor_arquivo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 {{ forloop.counter }}</a>
-                    {% endif %}
-                  {% endfor %}
-                </div>
-              {% endif %}
-            {% endwith %}
-            {% if c.anexo_adm %}
-              <div class="small mt-2">
-                <span class="text-muted">Anexo da tratativa:</span>
-                <a href="{{ c.anexo_adm.url }}" target="_blank" class="btn btn-sm btn-outline-dark ms-1 mt-1">📎 Abrir</a>
-              </div>
-            {% endif %}
-            <a class="btn btn-sm btn-outline-primary w-100 mt-2" href="{% url 'solicitacoes:chamado_tratativa' c.id %}">Gerenciar</a>
-          </div>
-        {% empty %}
-          <div class="p-3 text-center text-muted small">Nenhum chamado.</div>
-        {% endfor %}
-      </div>
-
-      {% if andamento.paginator and andamento.paginator.num_pages > 1 %}
-        <div class="px-3 py-2">
-          <nav aria-label="Paginação — Em andamento">
-            <ul class="pagination pagination-sm mb-0">
-              {% if andamento.has_previous %}
-                <li class="page-item"><a class="page-link" href="{% if qs_and %}?{{ qs_and }}&pg_and={{ andamento.previous_page_number }}{% else %}?pg_and={{ andamento.previous_page_number }}{% endif %}">«</a></li>
-              {% endif %}
-              {% for i in andamento.paginator.page_range %}
-                <li class="page-item {% if andamento.number == i %}active{% endif %}">
-                  <a class="page-link" href="{% if qs_and %}?{{ qs_and }}&pg_and={{ i }}{% else %}?pg_and={{ i }}{% endif %}">{{ i }}</a>
-                </li>
-              {% endfor %}
-              {% if andamento.has_next %}
-                <li class="page-item"><a class="page-link" href="{% if qs_and %}?{{ qs_and }}&pg_and={{ andamento.next_page_number }}{% else %}?pg_and={{ andamento.next_page_number }}{% endif %}">»</a></li>
-              {% endif %}
-            </ul>
-          </nav>
-        </div>
-      {% endif %}
+<!-- Em andamento -->
+<div class="glass mb-3">
+  <div class="section-head andamento collapsed" data-bs-toggle="collapse" data-bs-target="#secAnd" aria-expanded="false" id="headAnd">
+    <svg class="toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+    <h3>Em andamento</h3>
+    {% with n=novos.andamento|default:0 %}
+    <span class="counter">
+      <span class="num {% if n %}pulse{% endif %}">{{ andamento.paginator.count }}</span>
+      {% if n %}<small class="opacity-75">+{{ n }} novo(s)</small>{% endif %}
+    </span>
+    {% endwith %}
+    <div class="head-actions">
+      <span class="small opacity-75 d-none d-sm-inline">Por página</span>
+      <select class="form-select form-select-sm" onchange="location.href='?{{ qs_and }}&ps_and='+this.value">
+        <option value="2"  {% if ps_and == 2 %}selected{% endif %}>2</option>
+        <option value="5"  {% if ps_and == 5 %}selected{% endif %}>5</option>
+        <option value="10" {% if ps_and == 10 %}selected{% endif %}>10</option>
+        <option value="15" {% if ps_and == 15 %}selected{% endif %}>15</option>
+        <option value="20" {% if ps_and == 20 %}selected{% endif %}>20</option>
+      </select>
+      <button class="btn btn-soft btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#secAnd">
+        <span class="me-1">Ver mais</span>
+        <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+      </button>
     </div>
   </div>
 
+  <div id="secAnd" class="collapse section-body" data-section-key="secAnd">
+    <div class="table-responsive d-none d-md-block">
+      <table class="table table-sm table-striped table-hover align-middle mb-0">
+        <thead class="table-light">
+        <tr>
+          <th style="width:70px">#</th>
+          <th>Tipo</th>
+          <th>Solicitante</th>
+          <th>Status</th>
+          <th>Atendente</th>
+          <th style="width:180px">Criado</th>
+          <th>Tratativa</th>
+          <th style="width:180px">Anexos</th>
+          <th style="width:140px">Gerenciar</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for c in andamento %}
+          <tr data-chamado-id="{{ c.id }}">
+            <td>
+              #{{ c.id }}
+              <span class="badge badge-new bg-danger ms-1 d-none" id="m-new-d-{{ c.id }}"></span>
+            </td>
+            <td>{{ c.tipo.nome }}</td>
+            <td>{{ c.solicitante|default:"—" }}</td>
+            <td><span class="badge bg-warning text-dark">Em andamento</span></td>
+            <td>{{ c.atendente_nome|default:"—" }}</td>
+            <td>{{ c.criado_em|date:"d/m/Y H:i" }}</td>
+            <td class="text-break">{{ c.tratativa_adm|default:"—"|truncatechars:120 }}</td>
+            <td>
+              {% with files=c.respostas.all %}
+                {% if files %}
+                  {% for f in files %}
+                    {% if f.valor_arquivo %}
+                      <a href="{{ f.valor_arquivo.url }}" class="btn btn-outline-secondary btn-sm me-1" target="_blank" title="{{ f.pergunta.texto|default:'Anexo' }}">📎 {{ forloop.counter }}</a>
+                    {% endif %}
+                  {% endfor %}
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              {% endwith %}
+              {% if c.anexo_adm %}
+                <a href="{{ c.anexo_adm.url }}" class="btn btn-outline-dark btn-sm mt-1" target="_blank" title="Anexo da tratativa">📎 Tratativa</a>
+              {% endif %}
+            </td>
+            <td>
+              {% if c.pode_gerenciar %}
+                <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-sm btn-outline-primary">
+                  Gerenciar
+                </a>
+              {% else %}
+                <button class="btn btn-sm btn-outline-secondary" disabled
+                        title="Em andamento por {{ c.atendente_nome|default:'—' }}">
+                  Em andamento
+                </button>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="text-muted text-center">Nenhum chamado.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-md-none p-2">
+      {% for c in andamento %}
+        <div class="glass p-2 mb-2" data-chamado-id="{{ c.id }}">
+          <div class="d-flex justify-content-between">
+            <div class="fw-semibold">{{ c.tipo.nome }}</div>
+            <span class="badge rounded-pill bg-warning text-dark">Em andamento</span>
+          </div>
+          <div class="small text-muted mt-1">
+            #{{ c.id }}
+            <span class="badge badge-new bg-danger ms-1 d-none" id="m-new-m-{{ c.id }}"></span>
+            • {{ c.criado_em|date:"d/m/Y H:i" }}
+          </div>
+          <div class="small mt-1"><span class="text-muted">Solicitante:</span> {{ c.solicitante|default:"—" }}</div>
+          <div class="small mt-1"><span class="text-muted">Atendente:</span> {{ c.atendente_nome|default:"—" }}</div>
+          {% if c.tratativa_adm %}<div class="small mt-1 text-break"><span class="text-muted">Tratativa:</span> {{ c.tratativa_adm|truncatechars:90 }}</div>{% endif %}
+          {% with files=c.respostas.all %}
+            {% if files %}
+              <div class="small mt-2">
+                <span class="text-muted">Anexos:</span>
+                {% for f in files %}
+                  {% if f.valor_arquivo %}
+                    <a href="{{ f.valor_arquivo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary me-1 mt-1">📎 {{ forloop.counter }}</a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endwith %}
+          {% if c.anexo_adm %}
+            <div class="small mt-2">
+              <span class="text-muted">Anexo da tratativa:</span>
+              <a href="{{ c.anexo_adm.url }}" target="_blank" class="btn btn-sm btn-outline-dark ms-1 mt-1">📎 Abrir</a>
+            </div>
+          {% endif %}
+
+          {% if c.pode_gerenciar %}
+            <a class="btn btn-sm btn-outline-primary w-100 mt-2"
+               href="{% url 'solicitacoes:chamado_tratativa' c.id %}">Gerenciar</a>
+          {% else %}
+            <button class="btn btn-sm btn-outline-secondary w-100 mt-2" disabled
+                    title="Em andamento por {{ c.atendente_nome|default:'—' }}">
+              Em andamento
+            </button>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="p-3 text-center text-muted small">Nenhum chamado.</div>
+      {% endfor %}
+    </div>
+
+    {% if andamento.paginator and andamento.paginator.num_pages > 1 %}
+      <div class="px-3 py-2">
+        <nav aria-label="Paginação — Em andamento">
+          <ul class="pagination pagination-sm mb-0">
+            {% if andamento.has_previous %}
+              <li class="page-item"><a class="page-link" href="{% if qs_and %}?{{ qs_and }}&pg_and={{ andamento.previous_page_number }}{% else %}?pg_and={{ andamento.previous_page_number }}{% endif %}">«</a></li>
+            {% endif %}
+            {% for i in andamento.paginator.page_range %}
+              <li class="page-item {% if andamento.number == i %}active{% endif %}">
+                <a class="page-link" href="{% if qs_and %}?{{ qs_and }}&pg_and={{ i }}{% else %}?pg_and={{ i }}{% endif %}">{{ i }}</a>
+              </li>
+            {% endfor %}
+            {% if andamento.has_next %}
+              <li class="page-item"><a class="page-link" href="{% if qs_and %}?{{ qs_and }}&pg_and={{ andamento.next_page_number }}{% else %}?pg_and={{ andamento.next_page_number }}{% endif %}">»</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+
   <!-- ===================== HISTÓRICO ===================== -->
   <h2 class="quad-title">Histórico</h2>
-
-  <!-- Suspensos -->
-  <div class="glass mb-3">
-    <div class="section-head suspensos collapsed" data-bs-toggle="collapse" data-bs-target="#secSus" aria-expanded="false" id="headSus">
-      <svg class="toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
-      <h3>Suspensos</h3>
-      {% with n=novos.suspensos|default:0 %}
+<!-- Suspensos -->
+<div class="glass mb-3">
+  <div class="section-head suspensos collapsed" data-bs-toggle="collapse" data-bs-target="#secSus" aria-expanded="false" id="headSus">
+    <svg class="toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+    <h3>Suspensos</h3>
+    {% with n=novos.suspensos|default:0 %}
       <span class="counter">
         <span class="num {% if n %}pulse{% endif %}">{{ suspensos.paginator.count }}</span>
         {% if n %}<small class="opacity-75">+{{ n }} novo(s)</small>{% endif %}
       </span>
-      {% endwith %}
-      <div class="head-actions">
-        <span class="small opacity-75 d-none d-sm-inline">Por página</span>
-        <select class="form-select form-select-sm" onchange="location.href='?{{ qs_sus }}&ps_sus='+this.value">
-          <option value="2"  {% if ps_sus == 2 %}selected{% endif %}>2</option>
-          <option value="5"  {% if ps_sus == 5 %}selected{% endif %}>5</option>
-          <option value="10" {% if ps_sus == 10 %}selected{% endif %}>10</option>
-          <option value="15" {% if ps_sus == 15 %}selected{% endif %}>15</option>
-          <option value="20" {% if ps_sus == 20 %}selected{% endif %}>20</option>
-        </select>
-        <button class="btn btn-soft btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#secSus">
-          <span class="me-1">Ver mais</span>
-          <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
-        </button>
-      </div>
+    {% endwith %}
+    <div class="head-actions">
+      <span class="small opacity-75 d-none d-sm-inline">Por página</span>
+      <select class="form-select form-select-sm" onchange="location.href='?{{ qs_sus }}&ps_sus='+this.value">
+        <option value="2"  {% if ps_sus == 2 %}selected{% endif %}>2</option>
+        <option value="5"  {% if ps_sus == 5 %}selected{% endif %}>5</option>
+        <option value="10" {% if ps_sus == 10 %}selected{% endif %}>10</option>
+        <option value="15" {% if ps_sus == 15 %}selected{% endif %}>15</option>
+        <option value="20" {% if ps_sus == 20 %}selected{% endif %}>20</option>
+      </select>
+      <button class="btn btn-soft btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#secSus">
+        <span class="me-1">Ver mais</span>
+        <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.12 9.29 12 13.17l3.88-3.88 1.41 1.41L12 16l-5.29-5.29z"/></svg>
+      </button>
     </div>
+  </div>
 
-    <div id="secSus" class="collapse section-body" data-section-key="secSus">
-      <div class="table-responsive d-none d-md-block">
-        <table class="table table-sm table-striped table-hover align-middle mb-0">
-          <thead class="table-light">
+  <div id="secSus" class="collapse section-body" data-section-key="secSus">
+
+    <!-- Desktop -->
+    <div class="table-responsive d-none d-md-block">
+      <table class="table table-sm table-striped table-hover align-middle mb-0">
+        <thead class="table-light">
           <tr>
             <th style="width:70px">#</th>
             <th>Tipo</th>
@@ -551,54 +573,81 @@
             <th>Atendente</th>
             <th style="width:180px">Criado</th>
             <th>Tratativa</th>
-            <th style="width:140px">Gerenciar</th>
+            <th style="width:240px">Gerenciar</th>
           </tr>
-          </thead>
-          <tbody>
-          {% for c in suspensos %}
-            <tr data-chamado-id="{{ c.id }}">
-              <td>
-                #{{ c.id }}
-                <span class="badge badge-new bg-danger ms-1 d-none" id="m-new-d-{{ c.id }}"></span>
-              </td>
-              <td>{{ c.tipo.nome }}</td>
-              <td>{{ c.solicitante|default:"—" }}</td>
-              <td><span class="badge bg-danger">Suspenso</span></td>
-              <td>{{ c.atendente_nome|default:"—" }}</td>
-              <td>{{ c.criado_em|date:"d/m/Y H:i" }}</td>
-              <td class="text-break">{{ c.tratativa_adm|default:"—"|truncatechars:120 }}</td>
-              <td><a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-sm btn-outline-primary">Gerenciar</a></td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="8" class="text-muted text-center">Nenhum chamado.</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="d-md-none p-2">
+        </thead>
+        <tbody>
         {% for c in suspensos %}
-          <div class="glass p-2 mb-2" data-chamado-id="{{ c.id }}">
-            <div class="d-flex justify-content-between">
-              <div class="fw-semibold">{{ c.tipo.nome }}</div>
-              <span class="badge rounded-pill bg-danger">Suspenso</span>
-            </div>
-            <div class="small text-muted mt-1">
+          <tr data-chamado-id="{{ c.id }}">
+            <td>
               #{{ c.id }}
-              <span class="badge badge-new bg-danger ms-1 d-none" id="m-new-m-{{ c.id }}"></span>
-              • {{ c.criado_em|date:"d/m/Y H:i" }}
-            </div>
-            <div class="small mt-1"><span class="text-muted">Solicitante:</span> {{ c.solicitante|default:"—" }}</div>
-            <div class="small mt-1"><span class="text-muted">Atendente:</span> {{ c.atendente_nome|default:"—" }}</div>
-            {% if c.tratativa_adm %}<div class="small mt-1 text-break"><span class="text-muted">Tratativa:</span> {{ c.tratativa_adm|truncatechars:90 }}</div>{% endif %}
-            <a class="btn btn-sm btn-outline-primary w-100 mt-2" href="{% url 'solicitacoes:chamado_tratativa' c.id %}">Gerenciar</a>
-          </div>
+              <span class="badge badge-new bg-danger ms-1 d-none" id="m-new-d-{{ c.id }}"></span>
+            </td>
+            <td>{{ c.tipo.nome }}</td>
+            <td>{{ c.solicitante|default:"—" }}</td>
+            <td><span class="badge bg-danger">Suspenso</span></td>
+            <td>{{ c.atendente_nome|default:"—" }}</td>
+            <td>{{ c.criado_em|date:"d/m/Y H:i" }}</td>
+            <td class="text-break">{{ c.tratativa_adm|default:"—"|truncatechars:120 }}</td>
+
+            <td class="text-center">
+              <div class="d-flex gap-2 justify-content-center">
+                <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-sm btn-outline-primary">Gerenciar</a>
+
+                {% if c.pode_reabrir %}
+                  <form method="post" action="{% url 'solicitacoes:reabrir_chamado' c.id %}" class="d-inline">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-success" onclick="return confirm('Reabrir este chamado?');">
+                      Reabrir
+                    </button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
         {% empty %}
-          <div class="p-3 text-center text-muted small">Nenhum chamado.</div>
+          <tr><td colspan="8" class="text-muted text-center">Nenhum chamado.</td></tr>
         {% endfor %}
-      </div>
+        </tbody>
+      </table>
     </div>
+
+    <!-- Mobile -->
+    <div class="d-md-none p-2">
+      {% for c in suspensos %}
+        <div class="glass p-2 mb-2" data-chamado-id="{{ c.id }}">
+          <div class="d-flex justify-content-between">
+            <div class="fw-semibold">{{ c.tipo.nome }}</div>
+            <span class="badge rounded-pill bg-danger">Suspenso</span>
+          </div>
+          <div class="small text-muted mt-1">
+            #{{ c.id }}
+            <span class="badge badge-new bg-danger ms-1 d-none" id="m-new-m-{{ c.id }}"></span>
+            • {{ c.criado_em|date:"d/m/Y H:i" }}
+          </div>
+          <div class="small mt-1"><span class="text-muted">Solicitante:</span> {{ c.solicitante|default:"—" }}</div>
+          <div class="small mt-1"><span class="text-muted">Atendente:</span> {{ c.atendente_nome|default:"—" }}</div>
+          {% if c.tratativa_adm %}<div class="small mt-1 text-break"><span class="text-muted">Tratativa:</span> {{ c.tratativa_adm|truncatechars:90 }}</div>{% endif %}
+
+          <div class="d-grid gap-2 mt-2">
+            <a class="btn btn-sm btn-outline-primary w-100" href="{% url 'solicitacoes:chamado_tratativa' c.id %}">Gerenciar</a>
+
+            {% if c.pode_reabrir %}
+              <form method="post" action="{% url 'solicitacoes:reabrir_chamado' c.id %}">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-success w-100">Reabrir</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% empty %}
+        <div class="p-3 text-center text-muted small">Nenhum chamado.</div>
+      {% endfor %}
+    </div>
+
   </div>
+</div>
+
 
   <!-- Concluídos -->
   <div class="glass mb-3">
@@ -813,6 +862,7 @@ function getCsrfToken(){
       body:"secao="+encodeURIComponent(secao)
     }).catch(()=>{}).finally(()=>{ SEEN.busy=false; SEEN.sent[secao]=true; });
   }
+
   document.querySelectorAll('.collapse.section-body').forEach(el=>{
     const secKey=el.dataset.sectionKey||el.id||'sec';
     const key='tratativa:'+secKey;
@@ -829,11 +879,44 @@ function getCsrfToken(){
       document.querySelector('[data-bs-target="#'+el.id+'"]')?.classList.add('collapsed');
     });
   });
-})();
+
+/* ========== CLIQUE GUARDADO NA BARRA ==========
+   Bloqueia o data-api do Bootstrap no cabeçalho: só abre/fecha
+   ao clicar na própria barra OU no botão "Ver mais".
+   Cliques nos controles (.head-actions) não colapsam.
+*/
+document.querySelectorAll('.section-head[data-bs-target]').forEach(function(head){
+  head.addEventListener('click', function(e){
+    // Sempre barrar a propagação para o document (onde o BS faz o toggle)
+    e.stopPropagation();
+
+    const insideActions = !!e.target.closest('.head-actions');
+    const isVerMais    = !!e.target.closest('.btn-soft');
+
+    // Se clicou em controles da barra (exceto "Ver mais"): deixa funcionar e sai
+    if (insideActions && !isVerMais) return;
+
+    // Cabeçalho fora dos controles OU no "Ver mais" -> toggle manual
+    const targetSel = head.getAttribute('data-bs-target') || head.dataset.bsTarget;
+    const target    = document.querySelector(targetSel);
+    if (!target) return;
+
+    const inst = bootstrap.Collapse.getOrCreateInstance(target, { toggle:false });
+    inst.toggle();
+  }); // <- sem capture!
+});
+
+// Reforço: qualquer elemento dentro de .head-actions (menos "Ver mais")
+// também bloqueia a propagação, por segurança.
+document.querySelectorAll('.section-head .head-actions *:not(.btn-soft)').forEach(function(el){
+  el.addEventListener('click', function(e){
+    e.stopPropagation();
+  });
+});
+
 
 /* =============== NOVAS MENSAGENS (poll) =============== */
 (function(){
-  // >>>>>> TROQUE o endpoint abaixo se usar outro nome na urls.py
   const SEEN_URL = "{% url 'solicitacoes:atendimento_seen' %}";
 
   function getIds(){
@@ -845,7 +928,6 @@ function getCsrfToken(){
     return Array.from(ids);
   }
 
-  // marca como visto no backend (fire-and-forget)
   function marcarChamadoVisto(id){
     const token=getCsrfToken(); if(!token) return;
     const body = new URLSearchParams({ids: String(id)});
@@ -857,7 +939,6 @@ function getCsrfToken(){
     }).catch(()=>{});
   }
 
-  // aceita número, boolean (true/false) ou string "true"/"false"
   function setBadge(id, value){
     let isBool=false, n=0;
     if (typeof value === 'boolean' || value === 'true' || value === 'false'){
@@ -870,18 +951,11 @@ function getCsrfToken(){
       const b = document.getElementById(domId);
       if(!b) return;
       if(n>0){
-        if(isBool){
-          b.textContent = '';          // vira ponto
-          b.classList.add('badge-dot');
-        } else {
-          b.textContent = n>9 ? '9+' : String(n);
-          b.classList.remove('badge-dot');
-        }
+        if(isBool){ b.textContent=''; b.classList.add('badge-dot'); }
+        else { b.textContent = n>9 ? '9+' : String(n); b.classList.remove('badge-dot'); }
         b.classList.remove('d-none');
       } else {
-        b.textContent = '';
-        b.classList.add('d-none');
-        b.classList.remove('badge-dot');
+        b.textContent=''; b.classList.add('d-none'); b.classList.remove('badge-dot');
       }
     });
   }
@@ -893,12 +967,11 @@ function getCsrfToken(){
     try{
       const r = await fetch("{% url 'solicitacoes:api_novas_mensagens' %}?"+qs.toString(), {credentials:'same-origin'});
       if(!r.ok) return;
-      const data = await r.json();     // { "9":0, "8":true, ... } ou números
+      const data = await r.json();
       ids.forEach(id => setBadge(id, data[id]));
     }catch(_e){}
   }
 
-  // ao clicar em Gerenciar, some visualmente e marca no backend
   document.addEventListener('click', (ev)=>{
     const a = ev.target.closest('a[href]');
     if(!a) return;
@@ -915,12 +988,12 @@ function getCsrfToken(){
     }
   });
 
-  // quando voltar para a aba, refaz a checagem
   window.addEventListener('pageshow', tick);
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) tick(); });
   window.addEventListener('focus', tick);
-
   document.addEventListener('DOMContentLoaded', ()=>{ tick(); setInterval(tick, 20000); });
 })();
 </script>
+
+
 {% endblock %}

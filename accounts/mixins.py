@@ -1,17 +1,30 @@
-
 # accounts/mixins.py
 from django.contrib.auth.mixins import UserPassesTestMixin
 
 class OnlyManagersMixin(UserPassesTestMixin):
     """
-    Permite: superuser, ADMIN e GESTOR (via campo perfil ou via grupos).
+    Permite acesso para:
+      - superusuário
+      - perfis ADMINISTRADOR, GESTOR e SUPER_TI
+      - ou membros de grupos com esses mesmos nomes
     """
-    raise_exception = True  # retorna 403 em vez de redirecionar
+    raise_exception = True  # 403 em vez de redirecionar
+    allowed_profiles = {"ADMINISTRADOR", "GESTOR", "SUPER_TI"}
 
     def test_func(self):
         u = self.request.user
         if not u.is_authenticated:
             return False
-        in_groups = u.groups.filter(name__in=["ADMIN", "GESTOR"]).exists()
-        by_profile = getattr(u, "perfil", None) in ("ADMIN", "GESTOR")
-        return u.is_superuser or in_groups or by_profile
+
+        if u.is_superuser:
+            return True
+
+        # por perfil (campo do seu User)
+        if getattr(u, "perfil", None) in self.allowed_profiles:
+            return True
+
+        # por grupo (você sincroniza grupos = perfil)
+        if u.groups.filter(name__in=self.allowed_profiles).exists():
+            return True
+
+        return False

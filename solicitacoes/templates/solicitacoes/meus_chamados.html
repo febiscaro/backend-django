@@ -538,11 +538,14 @@
                 <td class="text-end">
                   <div class="d-flex gap-2 justify-content-end">
                     <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-outline-primary btn-sm">Ver</a>
-                    <form method="post" action="{% url 'solicitacoes:reabrir_chamado' c.id %}" class="d-inline">
-                      {% csrf_token %}
-                      <button class="btn btn-sm btn-outline-success">Reabrir</button>
-                    </form>
+                    {% if request.user.is_staff %}
+                      <form method="post" action="{% url 'solicitacoes:reabrir_chamado' c.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-outline-success">Reabrir</button>
+                      </form>
+                    {% endif %}
                   </div>
+
                 </td>
               </tr>
               {% empty %}
@@ -581,18 +584,21 @@
             {% endif %}
             <div class="d-grid gap-2 mt-2">
               <a href="{% url 'solicitacoes:chamado_tratativa' c.id %}" class="btn btn-primary btn-sm">Ver detalhes</a>
-              <form method="post" action="{% url 'solicitacoes:reabrir_chamado' c.id %}">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-success w-100">Reabrir</button>
-              </form>
+              {% if request.user.is_staff %}
+                <form method="post" action="{% url 'solicitacoes:reabrir_chamado' c.id %}">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-success w-100">Reabrir</button>
+                </form>
+              {% endif %}
             </div>
+
           </div>
         {% empty %}
           <div class="p-3 text-center text-muted small">Você não tem chamados suspensos.</div>
         {% endfor %}
       </div>
 
-      <div class="px-3 py-2 text-muted small">Você pode reabrir em até 5 dias após a suspensão.</div>
+      
 
       {% if suspensos.paginator and suspensos.paginator.num_pages > 1 %}
       <div class="px-3 pb-2">
@@ -899,7 +905,11 @@
 {# ====================== MODAL: NOVA SOLICITAÇÃO ====================== #}
 <div class="modal fade" id="modalNova" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
-    <form class="modal-content" method="post" action="{% url 'solicitacoes:nova_solicitacao' %}">
+    <form class="modal-content"
+          method="post"
+          action="{% url 'solicitacoes:nova_solicitacao' %}"
+          enctype="multipart/form-data"
+          data-submit-once>
       {% csrf_token %}
       <div class="modal-header">
         <h5 class="modal-title">Nova Solicitação</h5>
@@ -908,8 +918,8 @@
       <div class="modal-body">
         <div class="mb-3">
           <label class="form-label">Tipo</label>
-          <select class="form-select" name="tipo" id="sel-tipo">
-            <option value="">— Selecione —</option>
+          <select class="form-select" name="tipo" id="sel-tipo" required>
+            <option value="" disabled selected>— Selecione —</option>
             {% for t in form_tipo.fields.tipo.queryset %}
               <option value="{{ t.id }}" data-url="{% url 'solicitacoes:form_campos_por_tipo' t.id %}">{{ t.nome }}</option>
             {% endfor %}
@@ -924,6 +934,7 @@
     </form>
   </div>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}
