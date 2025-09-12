@@ -1,15 +1,16 @@
 from django import forms
-from django.contrib.auth.forms import AuthenticationForm, ReadOnlyPasswordHashField, PasswordChangeForm
-from .models import User, validate_cpf, validate_company_email
-
+from django.contrib.auth.forms import (
+    AuthenticationForm,
+    ReadOnlyPasswordHashField,
+    PasswordChangeForm,
+)
+from .models import User
+from .validators import validate_cpf, validate_company_email
 
 
 # ---------- Form do LOGIN (usado pelo LoginView) ----------
 class CPFAuthenticationForm(AuthenticationForm):
-    """
-    Formulário de autenticação que renomeia username -> CPF
-    e aplica classes/placeholder do Bootstrap.
-    """
+    """Formulário de autenticação que renomeia username -> CPF e aplica classes Bootstrap."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["username"].label = "CPF"
@@ -39,15 +40,17 @@ class UserCreationForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ("cpf", "nome_completo", "email", "data_nascimento", "setor", "cargo", "perfil")
+        fields = ("cpf", "nome_completo", "email", "data_nascimento", "setor", "cargo", "perfil", "gestao")
         widgets = {
-            "cpf": forms.TextInput(attrs={"class": "form-control", "placeholder": "Somente números", "inputmode": "numeric"}),
-            "nome_completo": forms.TextInput(attrs={"class": "form-control", "placeholder": "Nome completo"}),
-            "email": forms.EmailInput(attrs={"class": "form-control", "placeholder": "seu.nome@mirabit.com.br"}),
+            "cpf":             forms.TextInput(attrs={"class": "form-control", "placeholder": "Somente números", "inputmode": "numeric"}),
+            "nome_completo":   forms.TextInput(attrs={"class": "form-control", "placeholder": "Nome completo"}),
+            "email":           forms.EmailInput(attrs={"class": "form-control", "placeholder": "seu.nome@mirabit.com.br"}),
             "data_nascimento": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
-            "setor": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex.: Financeiro"}),
-            "cargo": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex.: Analista"}),
-            "perfil": forms.Select(attrs={"class": "form-select"}),
+            # dropdowns (choices vêm do modelo)
+            "setor":           forms.Select(attrs={"class": "form-select"}),
+            "cargo":           forms.Select(attrs={"class": "form-select"}),
+            "perfil":          forms.Select(attrs={"class": "form-select"}),
+            "gestao":          forms.Select(attrs={"class": "form-select"}),
         }
 
     def clean_cpf(self):
@@ -81,22 +84,25 @@ class UserChangeForm(forms.ModelForm):
     class Meta:
         model = User
         fields = (
-            "cpf", "nome_completo", "email", "data_nascimento", "setor", "cargo", "perfil",
+            "cpf", "nome_completo", "email", "data_nascimento",
+            "setor", "cargo", "perfil", "gestao",
             "password", "is_active", "is_staff", "is_superuser", "groups", "user_permissions"
         )
         widgets = {
-            "cpf": forms.TextInput(attrs={"class": "form-control", "inputmode": "numeric"}),
-            "nome_completo": forms.TextInput(attrs={"class": "form-control"}),
-            "email": forms.EmailInput(attrs={"class": "form-control"}),
+            "cpf":             forms.TextInput(attrs={"class": "form-control", "inputmode": "numeric"}),
+            "nome_completo":   forms.TextInput(attrs={"class": "form-control"}),
+            "email":           forms.EmailInput(attrs={"class": "form-control"}),
             "data_nascimento": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
-            "setor": forms.TextInput(attrs={"class": "form-control"}),
-            "cargo": forms.TextInput(attrs={"class": "form-control"}),
-            "perfil": forms.Select(attrs={"class": "form-select"}),
-            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "is_staff": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "is_superuser": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "groups": forms.SelectMultiple(attrs={"class": "form-select"}),
-            "user_permissions": forms.SelectMultiple(attrs={"class": "form-select"}),
+            # dropdowns:
+            "setor":           forms.Select(attrs={"class": "form-select"}),
+            "cargo":           forms.Select(attrs={"class": "form-select"}),
+            "perfil":          forms.Select(attrs={"class": "form-select"}),
+            "gestao":          forms.Select(attrs={"class": "form-select"}),
+            "is_active":       forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_staff":        forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_superuser":    forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "groups":          forms.SelectMultiple(attrs={"class": "form-select"}),
+            "user_permissions":forms.SelectMultiple(attrs={"class": "form-select"}),
         }
 
 
@@ -104,16 +110,18 @@ class UserChangeForm(forms.ModelForm):
 class FrontUserForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ("nome_completo", "cpf", "email", "data_nascimento", "setor", "cargo", "perfil", "is_active")
+        fields = ("nome_completo", "cpf", "email", "data_nascimento", "setor", "cargo", "perfil", "gestao", "is_active")
         widgets = {
-            "nome_completo": forms.TextInput(attrs={"class": "form-control"}),
-            "cpf": forms.TextInput(attrs={"class": "form-control", "inputmode": "numeric"}),
-            "email": forms.EmailInput(attrs={"class": "form-control"}),
+            "nome_completo":   forms.TextInput(attrs={"class": "form-control"}),
+            "cpf":             forms.TextInput(attrs={"class": "form-control", "inputmode": "numeric"}),
+            "email":           forms.EmailInput(attrs={"class": "form-control"}),
             "data_nascimento": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "setor": forms.TextInput(attrs={"class": "form-control"}),
-            "cargo": forms.TextInput(attrs={"class": "form-control"}),
-            "perfil": forms.Select(attrs={"class": "form-select"}),
-            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            # dropdowns:
+            "setor":           forms.Select(attrs={"class": "form-select"}),
+            "cargo":           forms.Select(attrs={"class": "form-select"}),
+            "perfil":          forms.Select(attrs={"class": "form-select"}),
+            "gestao":          forms.Select(attrs={"class": "form-select"}),
+            "is_active":       forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def clean_cpf(self):
@@ -121,8 +129,6 @@ class FrontUserForm(forms.ModelForm):
 
     def clean_email(self):
         return validate_company_email(self.cleaned_data.get("email"))
-
-
 
 
 class PrettyPasswordChangeForm(PasswordChangeForm):
@@ -146,13 +152,9 @@ class PrettyPasswordChangeForm(PasswordChangeForm):
         })
 
 
-
 # ---------- Form de "Meu perfil" (edição pelo próprio usuário) ----------
 class PerfilForm(forms.ModelForm):
-    """
-    Usado na página 'Meu perfil' para o próprio usuário atualizar
-    seus dados básicos (sem poder trocar CPF/perfil).
-    """
+    """Usado na página 'Meu perfil' para o próprio usuário atualizar dados básicos (sem trocar CPF/perfil/gestão)."""
     class Meta:
         model = User
         fields = ("nome_completo", "email", "data_nascimento", "setor", "cargo")
@@ -164,29 +166,13 @@ class PerfilForm(forms.ModelForm):
             "cargo": "Cargo",
         }
         widgets = {
-            "nome_completo": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Seu nome completo",
-            }),
-            "email": forms.EmailInput(attrs={
-                "class": "form-control",
-                "placeholder": "seu.nome@mirabit.com.br",
-                "autocomplete": "email",
-            }),
-            "data_nascimento": forms.DateInput(attrs={
-                "class": "form-control",
-                "type": "date",
-            }),
-            "setor": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Ex.: Financeiro",
-            }),
-            "cargo": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Ex.: Analista",
-            }),
+            "nome_completo":   forms.TextInput(attrs={"class": "form-control", "placeholder": "Seu nome completo"}),
+            "email":           forms.EmailInput(attrs={"class": "form-control", "placeholder": "seu.nome@mirabit.com.br", "autocomplete": "email"}),
+            "data_nascimento": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            # dropdowns:
+            "setor":           forms.Select(attrs={"class": "form-select"}),
+            "cargo":           forms.Select(attrs={"class": "form-select"}),
         }
 
     def clean_email(self):
-        # Reaproveita sua validação de domínio corporativo
         return validate_company_email(self.cleaned_data.get("email"))

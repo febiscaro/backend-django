@@ -34,6 +34,55 @@
           <div id="p-conversa-body" class="vstack gap-2"></div>
         </div>
       </div>
+
+      {% if not is_admin %}
+      <!-- Tratativa (LEITURA para solicitante / não-admin) -->
+      <div class="card mt-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <strong>Tratativa</strong>
+          <div>
+            {% if chamado.status == chamado.Status.ABERTO %}
+              <span class="badge bg-primary">Aberto</span>
+            {% elif chamado.status == chamado.Status.EM_ANDAMENTO %}
+              <span class="badge bg-warning text-dark">Em andamento</span>
+            {% elif chamado.status == chamado.Status.SUSPENSO %}
+              <span class="badge bg-danger">Suspenso</span>
+            {% elif chamado.status == chamado.Status.CONCLUIDO %}
+              <span class="badge bg-success">Concluído</span>
+            {% elif chamado.status == chamado.Status.CANCELADO %}
+              <span class="badge bg-dark">Cancelado</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <div class="text-muted small mb-1">Descrição da tratativa</div>
+            {% if chamado.tratativa_adm %}
+              <div class="text-break">{{ chamado.tratativa_adm|linebreaksbr }}</div>
+            {% else %}
+              <div class="text-muted">Sem atualização de tratativa até o momento.</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <div class="text-muted small mb-1">Anexo</div>
+            {% if chamado.anexo_adm %}
+              <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer"
+                 href="{{ chamado.anexo_adm.url }}">📎 Baixar anexo</a>
+            {% else %}
+              <span class="text-muted">Nenhum anexo enviado.</span>
+            {% endif %}
+          </div>
+
+          <div class="small text-muted">
+            {% if chamado.atendente_nome %}
+              <div><strong>Atendente:</strong> {{ chamado.atendente_nome }}</div>
+            {% endif %}
+            <div><strong>Criado em:</strong> {{ chamado.criado_em|date:"d/m/Y H:i" }}</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
     </div>
 
     {% if is_admin %}
@@ -42,7 +91,6 @@
       <form id="form-tratativa" method="post" enctype="multipart/form-data"
             action="{% url 'solicitacoes:tratar_chamado' chamado.id %}" class="card">
         {% csrf_token %}
-        <!-- garante que, quando der tudo certo, a view sabe para onde voltar -->
         <input type="hidden" name="next" value="{% url 'solicitacoes:gerenciar_chamados' %}">
 
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -52,7 +100,6 @@
           {% endif %}
         </div>
 
-        <!-- Desabilita todos os controles quando bloquear_acoes=True -->
         <fieldset {% if bloquear_acoes %}disabled aria-disabled="true"{% endif %}>
           <div class="card-body">
 

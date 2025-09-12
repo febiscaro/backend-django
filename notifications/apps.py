@@ -6,4 +6,5 @@ class NotificationsConfig(AppConfig):
     name = "notifications"
 
     def ready(self):
-        import notifications.signals  # noqa
+        # importa e registra os receivers do signals.py
+        from . import signals  # noqa: F401

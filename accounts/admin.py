@@ -9,23 +9,41 @@ class UserAdmin(DjangoUserAdmin):
     form = UserChangeForm
     model = User
 
-    list_display = ("nome_completo", "cpf", "email", "perfil", "setor", "cargo", "is_active", "is_staff", "date_joined")
-    list_filter = ("perfil", "is_active", "is_staff", "setor", "cargo")
+    # 👇 inclui "gestao" nas colunas da lista
+    list_display = (
+        "nome_completo", "cpf", "email", "perfil", "gestao",
+        "setor", "cargo", "is_active", "is_staff", "date_joined"
+    )
+    # 👇 e no filtro lateral
+    list_filter = ("perfil", "gestao", "is_active", "is_staff", "setor", "cargo")
     search_fields = ("nome_completo", "cpf", "email")
     ordering = ("nome_completo",)
 
+    # 👇 inclui "gestao" no formulário de edição
     fieldsets = (
-        ("Dados pessoais", {"fields": ("cpf","nome_completo","email","data_nascimento","setor","cargo","perfil")}),
-        ("Permissões", {"fields": ("is_active","is_staff","is_superuser","groups","user_permissions")}),
-        ("Informações de acesso", {"fields": ("last_login","date_joined")}),
+        ("Dados pessoais", {
+            "fields": (
+                "cpf", "nome_completo", "email", "data_nascimento",
+                "setor", "cargo", "perfil", "gestao"   # <-- aqui
+            )
+        }),
+        ("Permissões", {
+            "fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")
+        }),
+        ("Informações de acesso", {"fields": ("last_login", "date_joined")}),
     )
-    readonly_fields = ("last_login","date_joined")
+    readonly_fields = ("last_login", "date_joined")
 
+    # 👇 inclui "gestao" no formulário de criação
     add_fieldsets = (
         (None, {
             "classes": ("wide",),
-            "fields": ("cpf","nome_completo","email","data_nascimento","setor","cargo","perfil","password1","password2","is_active","is_staff")}
-        ),
+            "fields": (
+                "cpf", "nome_completo", "email", "data_nascimento",
+                "setor", "cargo", "perfil", "gestao",                # <-- aqui
+                "password1", "password2", "is_active", "is_staff"
+            )
+        }),
     )
 
     actions = ["resetar_senha_temporaria", "ativar_usuarios", "desativar_usuarios"]

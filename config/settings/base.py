@@ -19,19 +19,20 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     "accounts",
     "core",
-
-    # use a AppConfig do app solicitacoes
     "solicitacoes.apps.SolicitacoesConfig",
-
-
     "notifications.apps.NotificationsConfig",
+]
+
  
 
 
-]
+
+
+
+
+ALLOWED_EMAIL_DOMAINS = ["mirabit.com.br", "enprodes.com.br"]
 
 
 MIDDLEWARE = [

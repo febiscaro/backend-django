@@ -42,6 +42,8 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse
 from django.urls import reverse
+from django.core.cache import cache
+
 
 from django.http import JsonResponse, Http404
 from django.template.loader import render_to_string
@@ -61,7 +63,13 @@ from django.http import JsonResponse, Http404
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_GET
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+from accounts.models import User  # garante acesso às constantes de perfil
 
+from solicitacoes.models import Chamado
 
 
 
@@ -90,7 +98,69 @@ from .models import (
 NEXT_AFTER_STATUS_CHANGE = "solicitacoes:gerenciar_chamados"
 UPDATED_FIELD = "atualizado_em"
 
+
+
+from accounts.models import User  # garante acesso às constantes de perfil
+
+def _perfil_is_admin(user) -> bool:
+    # tolera variações antigas/novas e diferença de maiúsculas
+    p = (getattr(user, "perfil", "") or "").strip().upper()
+    return p in {getattr(User, "PERFIL_ADMIN", "ADMINISTRADOR"), "ADMIN", "ADMINISTRADOR", "ADMINISTRATIVO"}
+
+def visible_chamados_for(user, base_qs):
+    """
+    Restringe 'base_qs' aos chamados visíveis pelo usuário.
+    - Admin (perfil) ou superuser: tudo
+    - Gestor: dele + equipe (mesma gestao ou grupo GESTAO_<gestao>)
+    - Colaborador: apenas dele
+    """
+    if not user.is_authenticated:
+        return base_qs.none()
+
+    # >>> administrador (qualquer variação) ou superuser vê tudo
+    if user.is_superuser or _perfil_is_admin(user):
+        return base_qs
+
+    # >>> gestor vê os próprios + equipe
+    if (getattr(user, "perfil", "") or "").strip().upper() == "GESTOR":
+        cond = Q(solicitante=user)
+        gestao = (getattr(user, "gestao", "") or "").strip()
+        if gestao and gestao.upper() != getattr(User, "GESTAO_SEM", "NA"):
+            cond |= Q(solicitante__gestao=gestao) | Q(solicitante__groups__name=f"GESTAO_{gestao}")
+        return base_qs.filter(cond).distinct()
+
+    # >>> colaborador
+    return base_qs.filter(solicitante=user)
+
 # ----------------- helpers -----------------
+def _is_assigned_to_me(user, ch) -> bool:
+    """
+    Retorna True se o nome do atendente do chamado coincide com o nome
+    'exibível' do usuário atual (mesma regra que usamos ao salvar).
+    """
+    att = (getattr(ch, "atendente_nome", "") or "").strip().lower()
+    me  = user_display(user).strip().lower()
+    return bool(att) and att == me
+
+
+def _eh_admin(user):
+    if not getattr(user, "is_authenticated", False):
+        return False
+
+    perfil = (getattr(user, "perfil", "") or "").strip().lower()
+    if perfil in {"administrador", "administrativo", "admin"}:
+        return True
+
+    if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
+        return True
+
+    # grupos que você já usa no _is_adminish
+    if user.groups.filter(name__in=["Administrativo", "Atendimento", "Gestor", "Suporte"]).exists():
+        return True
+
+    return False
+
+
 
 def _is_finalizado_status(status):
     try:
@@ -118,6 +188,8 @@ def user_display(u):
         val = (gu() or "").strip()
         if val: return val
     return str(u)
+
+
 
 def _is_adminish(user):
     if not user or not user.is_authenticated:
@@ -247,10 +319,12 @@ def tipo_perguntas(request, pk):
 
 # ----------------- Meus Chamados (solicitante) -----------------
 
+from accounts.models import User  # (garanta esse import no topo do arquivo)
+
 @login_required
 def meus_chamados(request):
-    # ADMIN não deve acessar "Meus Chamados" (apenas superuser pode ver tudo)
-    if not request.user.is_superuser and str(getattr(request.user, "perfil", "") or "").upper() == "ADMIN":
+    # Perfil ADMINISTRADOR não usa "Meus Chamados" (a menos que seja superuser)
+    if (not request.user.is_superuser) and getattr(request.user, "perfil", None) == User.PERFIL_ADMIN:
         return redirect("solicitacoes:gerenciar_chamados")
 
     qs_base = (
@@ -274,7 +348,9 @@ def meus_chamados(request):
         except (TypeError, ValueError):
             return default
 
-    ps_a, ps_and, ps_sus, ps_con, ps_can = _ps("ps_a", 6), _ps("ps_and", 2), _ps("ps_sus", 2), _ps("ps_con", 2), _ps("ps_can", 2)
+    ps_a, ps_and, ps_sus, ps_con, ps_can = (
+        _ps("ps_a", 6), _ps("ps_and", 2), _ps("ps_sus", 2), _ps("ps_con", 2), _ps("ps_can", 2)
+    )
     qs_preservada = _encode_filters_without_pages(request)
 
     context = {
@@ -308,43 +384,69 @@ def meus_chamados(request):
     }
     return render(request, "solicitacoes/meus_chamados.html", context)
 
+
 @login_required
 @require_POST
 def nova_solicitacao(request):
+    """
+    Abertura de chamado com proteção contra double-submit:
+    - usa uma chave 'idem' enviada pelo formulário para idempotência
+    - trava por 60s: se o mesmo usuário reenviar a mesma 'idem', ignora
+    """
+    # 1) Idempotência (opcional, mas recomendado): campo hidden 'idem'
+    idem = (request.POST.get("idem") or "").strip()
+    cache_key = None
+    if idem:
+        cache_key = f"nova_solic:{request.user.pk}:{idem}"
+        # cache.add() -> False se a chave já existir (tentativa duplicada)
+        if not cache.add(cache_key, "LOCK", timeout=60):
+            messages.info(request, "Solicitação já enviada. Aguarde o processamento.")
+            return redirect("solicitacoes:meus_chamados")
+
     tipo_id = request.POST.get("tipo")
     form_tmp = NovaSolicitacaoTipoForm(user=request.user)
     tipo = get_object_or_404(form_tmp.fields["tipo"].queryset, pk=tipo_id, ativo=True)
 
-    chamado = Chamado.objects.create(
-        solicitante=request.user, tipo=tipo, status=Chamado.Status.ABERTO,
-    )
-
-    perguntas = tipo.perguntas.filter(ativa=True).order_by("ordem", "id")
-    for p in perguntas:
-        nome_base = f"pergunta_{p.id}"
-        if p.tipo_campo == PerguntaTipoSolicitacao.TipoCampo.MULTIESCOLHA:
-            valores = request.POST.getlist(nome_base)
-            valor_texto = ";".join(v.strip() for v in valores if v.strip())
-        elif p.tipo_campo == PerguntaTipoSolicitacao.TipoCampo.BOOLEANO:
-            valor_texto = "true" if request.POST.get(nome_base) == "true" else "false"
-        else:
-            valor_texto = (request.POST.get(nome_base, "") or "").strip()
-
-        valor_arquivo = None
-        if p.tipo_campo == PerguntaTipoSolicitacao.TipoCampo.ARQUIVO and (nome_base + "_file") in request.FILES:
-            valor_arquivo = request.FILES.get(nome_base + "_file")
-
-        if p.obrigatoria and p.tipo_campo != PerguntaTipoSolicitacao.TipoCampo.ARQUIVO and not valor_texto:
-            chamado.delete()
-            messages.error(request, f'A pergunta "{p.texto}" é obrigatória.')
-            return redirect("solicitacoes:meus_chamados")
-
-        RespostaChamado.objects.create(
-            chamado=chamado, pergunta=p, valor_texto=valor_texto, valor_arquivo=valor_arquivo
+    # 2) Tudo-ou-nada
+    with transaction.atomic():
+        chamado = Chamado.objects.create(
+            solicitante=request.user, tipo=tipo, status=Chamado.Status.ABERTO,
         )
+
+        perguntas = tipo.perguntas.filter(ativa=True).order_by("ordem", "id")
+        for p in perguntas:
+            nome_base = f"pergunta_{p.id}"
+            if p.tipo_campo == PerguntaTipoSolicitacao.TipoCampo.MULTIESCOLHA:
+                valores = request.POST.getlist(nome_base)
+                valor_texto = ";".join(v.strip() for v in valores if v.strip())
+            elif p.tipo_campo == PerguntaTipoSolicitacao.TipoCampo.BOOLEANO:
+                valor_texto = "true" if request.POST.get(nome_base) == "true" else "false"
+            else:
+                valor_texto = (request.POST.get(nome_base, "") or "").strip()
+
+            valor_arquivo = None
+            if p.tipo_campo == PerguntaTipoSolicitacao.TipoCampo.ARQUIVO and (nome_base + "_file") in request.FILES:
+                valor_arquivo = request.FILES.get(nome_base + "_file")
+
+            # Validação de obrigatórias (rollback implícito por transaction.atomic)
+            if p.obrigatoria and p.tipo_campo != PerguntaTipoSolicitacao.TipoCampo.ARQUIVO and not valor_texto:
+                # libera o cadeado para o usuário poder reenviar após erro
+                if cache_key:
+                    cache.delete(cache_key)
+                messages.error(request, f'A pergunta "{p.texto}" é obrigatória.')
+                return redirect("solicitacoes:meus_chamados")
+
+            RespostaChamado.objects.create(
+                chamado=chamado, pergunta=p, valor_texto=valor_texto, valor_arquivo=valor_arquivo
+            )
+
+    # (opcional) marca a chave como concluída por mais tempo
+    if cache_key:
+        cache.set(cache_key, f"DONE:{chamado.pk}", timeout=300)
 
     messages.success(request, f"Chamado #{chamado.id} aberto com sucesso!")
     return redirect("solicitacoes:meus_chamados")
+
 
 @login_required
 def form_campos_por_tipo(request, tipo_id):
@@ -354,16 +456,42 @@ def form_campos_por_tipo(request, tipo_id):
     return render(request, "solicitacoes/_campos_perguntas.html", {"tipo": tipo, "perguntas": perguntas})
 
 @login_required
-@require_POST
 def reabrir_chamado(request, pk):
-    chamado = get_object_or_404(Chamado, pk=pk, solicitante=request.user)
-    if chamado.status != Chamado.Status.SUSPENSO:
-        messages.error(request, "Este chamado não está suspenso.")
-        return redirect("solicitacoes:meus_chamados")
-    chamado.reabrir()
-    chamado.save(update_fields=["status", "suspenso_em", "atualizado_em"])
-    messages.success(request, f"Chamado #{chamado.id} reaberto com sucesso!")
-    return redirect("solicitacoes:meus_chamados")
+    ch = get_object_or_404(Chamado, pk=pk)
+
+    if not _eh_admin(request.user):
+        return HttpResponseForbidden("Sem permissão.")
+
+    # mesma lógica do helper (resumida)
+    my_id = request.user.id
+    my_name = user_display(request.user).strip().lower()
+
+    att_id = (
+        getattr(ch, "atendente_id", None)
+        or getattr(ch, "atendente_user_id", None)
+        or getattr(getattr(ch, "atendente", None), "id", None)
+        or getattr(getattr(ch, "atendente_user", None), "id", None)
+    )
+    att_name = (
+        (getattr(ch, "atendente_nome", "") or "").strip().lower()
+        or user_display(getattr(ch, "atendente", None)).strip().lower()
+    )
+    is_me = (att_id and att_id == my_id) or (att_name and att_name == my_name)
+
+    if not is_me:
+        messages.warning(request, "Apenas o atendente do chamado pode reabrir.")
+        return redirect(request.META.get("HTTP_REFERER") or reverse("solicitacoes:gerenciar_chamados"))
+
+    if ch.status != Chamado.Status.SUSPENSO:
+        messages.warning(request, "Somente chamados suspensos podem ser reabertos.")
+        return redirect(request.META.get("HTTP_REFERER") or reverse("solicitacoes:gerenciar_chamados"))
+
+    ch.status = Chamado.Status.EM_ANDAMENTO
+    ch.suspenso_em = None
+    ch.save(update_fields=["status", "suspenso_em", "atualizado_em"])
+    messages.success(request, "Chamado reaberto com sucesso.")
+    return redirect(request.META.get("HTTP_REFERER") or reverse("solicitacoes:gerenciar_chamados"))
+
 
 @csrf_exempt
 @login_required
@@ -386,9 +514,9 @@ def marcar_secao_vista(request):
                 continue
             raise
 # ----------------- Gerenciar Chamados (Administrativo) -----------------
-
 @admin_required
 def gerenciar_chamados(request):
+    # --- filtros ---
     tipo_ids = [int(x) for x in request.GET.getlist("tipo") if x.isdigit()]
     criado_de_raw = (request.GET.get("criado_de") or "").strip()
     criado_ate_raw = (request.GET.get("criado_ate") or "").strip()
@@ -406,7 +534,12 @@ def gerenciar_chamados(request):
     except ValueError:
         criado_ate_raw = ""
 
-    qs_base = Chamado.objects.select_related("tipo", "solicitante").order_by("-criado_em")
+    qs_base = (
+        Chamado.objects
+        .select_related("tipo", "solicitante")
+        .order_by("-criado_em")
+    )
+
     if tipo_ids:
         qs_base = qs_base.filter(tipo_id__in=tipo_ids)
     if criado_de:
@@ -414,6 +547,7 @@ def gerenciar_chamados(request):
     if criado_ate:
         qs_base = qs_base.filter(criado_em__date__lte=criado_ate)
 
+    # --- paginação ---
     allowed = {2, 5, 6, 10, 15, 20}
     def _ps(param, default):
         try:
@@ -422,7 +556,31 @@ def gerenciar_chamados(request):
         except (TypeError, ValueError):
             return default
 
-    ps_a, ps_and, ps_sus, ps_con, ps_can = _ps("ps_a", 6), _ps("ps_and", 2), _ps("ps_sus", 2), _ps("ps_con", 2), _ps("ps_can", 2)
+    ps_a   = _ps("ps_a", 6)
+    ps_and = _ps("ps_and", 2)
+    ps_sus = _ps("ps_sus", 2)
+    ps_con = _ps("ps_con", 2)
+    ps_can = _ps("ps_can", 2)
+
+    abertos_page    = _paginar(qs_base.filter(status=Chamado.Status.ABERTO),       ps_a,   "pg_a",   request)
+    andamento_page  = _paginar(qs_base.filter(status=Chamado.Status.EM_ANDAMENTO), ps_and, "pg_and", request)
+    suspensos_page  = _paginar(qs_base.filter(status=Chamado.Status.SUSPENSO),     ps_sus, "pg_sus", request)
+    concluidos_page = _paginar(qs_base.filter(status=Chamado.Status.CONCLUIDO),    ps_con, "pg_con", request)
+    cancelados_page = _paginar(qs_base.filter(status=Chamado.Status.CANCELADO),    ps_can, "pg_can", request)
+
+    # --- quem pode reabrir suspensos (já existia) ---
+    can_reopen = _is_adminish(request.user)
+    for c in suspensos_page.object_list:
+        c.pode_reabrir = can_reopen
+
+    # --- NOVO: quem pode gerenciar "Em andamento"
+    me_name = user_display(request.user).strip().lower()
+    is_root = bool(getattr(request.user, "is_superuser", False))
+    for c in andamento_page.object_list:
+        att_name = (getattr(c, "atendente_nome", "") or "").strip().lower()
+        c.pode_gerenciar = is_root or (att_name and att_name == me_name)
+
+    qs_preservada = _encode_filters_without_pages(request)
 
     context = {
         "tipos": TipoSolicitacao.objects.order_by("nome"),
@@ -430,35 +588,64 @@ def gerenciar_chamados(request):
         "criado_de": criado_de_raw,
         "criado_ate": criado_ate_raw,
 
-        "abertos":    _paginar(qs_base.filter(status=Chamado.Status.ABERTO),       ps_a,   "pg_a",   request),
-        "andamento":  _paginar(qs_base.filter(status=Chamado.Status.EM_ANDAMENTO), ps_and, "pg_and", request),
-        "suspensos":  _paginar(qs_base.filter(status=Chamado.Status.SUSPENSO),     ps_sus, "pg_sus", request),
-        "concluidos": _paginar(qs_base.filter(status=Chamado.Status.CONCLUIDO),    ps_con, "pg_con", request),
-        "cancelados": _paginar(qs_base.filter(status=Chamado.Status.CANCELADO),    ps_can, "pg_can", request),
+        "abertos":    abertos_page,
+        "andamento":  andamento_page,
+        "suspensos":  suspensos_page,
+        "concluidos": concluidos_page,
+        "cancelados": cancelados_page,
 
         "ps_a": ps_a, "ps_and": ps_and, "ps_sus": ps_sus, "ps_con": ps_con, "ps_can": ps_can,
-        "qs_a":   _encode_filters_without_pages(request),
-        "qs_and": _encode_filters_without_pages(request),
-        "qs_sus": _encode_filters_without_pages(request),
-        "qs_con": _encode_filters_without_pages(request),
-        "qs_can": _encode_filters_without_pages(request),
+        "qs_a": qs_preservada, "qs_and": qs_preservada, "qs_sus": qs_preservada,
+        "qs_con": qs_preservada, "qs_can": qs_preservada,
 
         "motivos": ["Chamado não procede", "Chamado errado", "Chamado de teste", "Chamado perdido", "Outros"],
     }
     return render(request, "solicitacoes/gerenciar_chamados.html", context)
 
+
+
+@login_required
+def reabrir_chamado(request, pk):
+    chamado = get_object_or_404(Chamado, pk=pk)
+
+    # 🔒 qualquer admin-ish pode reabrir
+    if not _is_adminish(request.user):
+        return HttpResponseForbidden("Você não tem permissão para reabrir este chamado.")
+
+    if chamado.status != Chamado.Status.SUSPENSO:
+        messages.warning(request, "Somente chamados suspensos podem ser reabertos.")
+        return redirect(request.META.get("HTTP_REFERER") or reverse("solicitacoes:gerenciar_chamados"))
+
+    chamado.status = Chamado.Status.EM_ANDAMENTO
+    chamado.suspenso_em = None
+    chamado.save(update_fields=["status", "suspenso_em", "atualizado_em"])
+    messages.success(request, "Chamado reaberto com sucesso.")
+    return redirect(request.META.get("HTTP_REFERER") or reverse("solicitacoes:gerenciar_chamados"))
+
+
+
+
+# views.py (trecho de assumir_chamado)
 @admin_required
 @require_POST
 def assumir_chamado(request, pk):
     chamado = get_object_or_404(Chamado, pk=pk)
     u = request.user
     nome = user_display(u)[:120]
+
+    fields = ["atendente_nome", "status", "suspenso_em", "atualizado_em"]
     chamado.atendente_nome = nome
+    if hasattr(chamado, "atendente_user_id"):
+        chamado.atendente_user = u
+        fields.append("atendente_user")
+
     chamado.status = Chamado.Status.EM_ANDAMENTO
     chamado.suspenso_em = None
-    chamado.save(update_fields=["atendente_nome", "status", "suspenso_em", "atualizado_em"])
+    chamado.save(update_fields=fields)
+
     messages.success(request, f"Chamado #{chamado.id} assumido por {nome} e movido para Em andamento.")
     return redirect("solicitacoes:gerenciar_chamados")
+
 
 # ----------------- Tratativa -----------------
 
@@ -475,9 +662,19 @@ def tratar_chamado(request, pk):
     motivo = (request.POST.get("motivo") or "").strip()
     anexo = request.FILES.get("anexo_adm")
 
-    # 🔒 bloqueio para não-superuser quando já finalizado
+    # 🔒 Finalizado: só superuser altera
     if _is_finalizado_status(chamado.status) and not request.user.is_superuser:
         messages.warning(request, "Chamado concluído/cancelado. Apenas superusuário pode alterar.")
+        return redirect(reverse("solicitacoes:chamado_tratativa", args=[chamado.id]))
+
+    # 🔒 Em andamento: somente o atendente que assumiu (ou superuser) pode alterar
+    if (
+        chamado.status == Chamado.Status.EM_ANDAMENTO
+        and not request.user.is_superuser
+        and not _is_assigned_to_me(request.user, chamado)
+    ):
+        nome = chamado.atendente_nome or "outro atendente"
+        messages.warning(request, f"Este chamado está em andamento por {nome}.")
         return redirect(reverse("solicitacoes:chamado_tratativa", args=[chamado.id]))
 
     precisa_tratativa = acao in {"suspender", "cancelar", "concluir"}
@@ -503,6 +700,7 @@ def tratar_chamado(request, pk):
         chamado.anexo_adm = anexo
         updated_fields.append("anexo_adm")
 
+    # Define atendente quando ainda não há
     if not chamado.atendente_nome:
         chamado.atendente_nome = user_display(request.user)[:120]
         updated_fields.append("atendente_nome")
@@ -541,12 +739,24 @@ def tratar_chamado(request, pk):
 
     return redirect(reverse("solicitacoes:chamado_tratativa", args=[chamado.id]))
 
+
 @login_required
 def chamado_tratativa(request, pk):
     chamado = get_object_or_404(Chamado, pk=pk)
     is_admin = _is_adminish(request.user)
     finalizado = _is_finalizado_status(chamado.status)
-    bloquear_acoes = finalizado and (not request.user.is_superuser)
+    assigned_to_me = _is_assigned_to_me(request.user, chamado)
+
+    # 🔒 Bloqueia ações se: (finalizado e não superuser) OU
+    # em andamento e NÃO sou o atendente (e não sou superuser)
+    bloquear_acoes = (
+        (finalizado and not request.user.is_superuser)
+        or (
+            chamado.status == Chamado.Status.EM_ANDAMENTO
+            and not request.user.is_superuser
+            and not assigned_to_me
+        )
+    )
 
     return render(
         request,
@@ -555,8 +765,10 @@ def chamado_tratativa(request, pk):
             "chamado": chamado,
             "is_admin": is_admin,
             "bloquear_acoes": bloquear_acoes,
+            "assigned_to_me": assigned_to_me,  # opcional p/ exibir aviso no template
         },
     )
+
 
 # ----------------- Parciais (Abertura/Conversa) -----------------
 
@@ -855,18 +1067,12 @@ def _count_status(qs, *member_names: str) -> int:
 def dashboard_data(request):
     user = request.user
 
-    # Quem enxerga geral?
-    is_manager = (
-        user.is_superuser
-        or user.groups.filter(name__in=["Gestor"]).exists()
-        # se você quiser que ADMIN (perfil) também veja geral, mantenha a linha abaixo:
-        or getattr(user, "perfil", "") == "ADMIN"
-    )
+    # aplica a regra de visibilidade (admin/superuser = tudo,
+    # gestor = time + próprios, colaborador = próprios)
+    base_qs = Chamado.objects.select_related("tipo", "solicitante")
+    qs = visible_chamados_for(user, base_qs)
 
-    # Escopo dos dados
-    qs = Chamado.objects.all() if is_manager else Chamado.objects.filter(solicitante=user)
-
-    # --- métricas por status (ajuste para seus enums reais) ---
+    # métricas por status
     abertos      = qs.filter(status=Chamado.Status.ABERTO).count()
     andamento    = qs.filter(status=Chamado.Status.EM_ANDAMENTO).count()
     suspensos    = qs.filter(status=Chamado.Status.SUSPENSO).count()
@@ -874,15 +1080,12 @@ def dashboard_data(request):
     cancelados   = qs.filter(status=Chamado.Status.CANCELADO).count()
     total        = qs.count()
 
-    # --- top 5 tipos ---
+    # top 5 tipos
     top_tipos_qs = (
         qs.values("tipo__nome")
           .annotate(qtd=Count("id"))
           .order_by("-qtd")[:5]
     )
-    top_tipos_labels = [ (row["tipo__nome"] or "Sem tipo") for row in top_tipos_qs ]
-    top_tipos_values = [ row["qtd"] for row in top_tipos_qs ]
-
     data = {
         "cards": {
             "total": total,
@@ -893,8 +1096,8 @@ def dashboard_data(request):
             "cancelados": cancelados,
         },
         "top_tipos": {
-            "labels": top_tipos_labels,
-            "values": top_tipos_values,
+            "labels": [(row["tipo__nome"] or "Sem tipo") for row in top_tipos_qs],
+            "values": [row["qtd"] for row in top_tipos_qs],
         },
     }
     return JsonResponse(data)
@@ -904,47 +1107,46 @@ def dashboard_data(request):
 
 
 
-
 @login_required
 def dashboard_table(request):
     user = request.user
-    is_manager = (
-        user.is_superuser
-        or getattr(user, "perfil", "") == "ADMIN"
-        or user.groups.filter(name="Gestor").exists()
-    )
 
-    qs = Chamado.objects.select_related("tipo", "solicitante")
-    if not is_manager:
-        qs = qs.filter(solicitante=user)
+    base_qs = Chamado.objects.select_related("tipo", "solicitante")
+    qs = visible_chamados_for(user, base_qs)
 
-    # filtros
+    # filtros de busca
     q = (request.GET.get("q") or "").strip()
     if q:
         qs = qs.filter(
-            Q(solicitante__nome_completo__icontains=q)
-            | Q(solicitante__first_name__icontains=q)
-            | Q(solicitante__last_name__icontains=q)
-            | Q(solicitante__username__icontains=q)
+            Q(solicitante__nome_completo__icontains=q) |
+            Q(solicitante__cpf__icontains=q) |
+            Q(solicitante__email__icontains=q)
         )
 
-    tipo = request.GET.get("tipo")
+    tipo = (request.GET.get("tipo") or "").strip()
     if tipo:
         qs = qs.filter(tipo_id=tipo)
 
-    de = request.GET.get("de")
-    ate = request.GET.get("ate")
+    de = (request.GET.get("de") or "").strip()
+    ate = (request.GET.get("ate") or "").strip()
     if de:
         qs = qs.filter(criado_em__date__gte=de)
     if ate:
         qs = qs.filter(criado_em__date__lte=ate)
 
-    qs = qs.order_by("-criado_em")  # <-- aqui
+    qs = qs.order_by("-criado_em")
 
-    # paginação
-    page = int(request.GET.get("page", 1))
-    page_size = int(request.GET.get("page_size", 50))
-    start, end = (page - 1) * page_size, (page - 1) * page_size + page_size
+    # paginação segura
+    try:
+        page = max(1, int(request.GET.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = max(1, int(request.GET.get("page_size", 50)))
+    except (TypeError, ValueError):
+        page_size = 50
+
+    start, end = (page - 1) * page_size, page * page_size
 
     total = qs.count()
     rows = []
@@ -957,11 +1159,11 @@ def dashboard_table(request):
         s = getattr(c, "solicitante", None)
         solicitante = "-"
         if s:
-            solicitante = getattr(s, "nome_completo", None) or s.get_full_name() or str(s)
+            solicitante = getattr(s, "nome_completo", None) or getattr(s, "cpf", None) or str(s)
 
         rows.append({
             "id": c.pk,
-            "data": c.criado_em.strftime("%d/%m/%Y %H:%M"),  # <-- aqui
+            "data": c.criado_em.strftime("%d/%m/%Y %H:%M"),
             "solicitante": solicitante,
             "tipo": getattr(getattr(c, "tipo", None), "nome", "-"),
             "status": c.get_status_display(),
@@ -970,21 +1172,7 @@ def dashboard_table(request):
 
     return JsonResponse({"rows": rows, "total": total})
 
-# --- helper: quem é "gestor" / pode ver tudo ---
-def _is_manager(user) -> bool:
-    """
-    Retorna True se o usuário pode ver o panorama geral:
-    - superusuário
-    - perfil ADMIN (se você usa esse campo)
-    - pertence a algum grupo 'Gestor'
-    """
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if getattr(user, "is_superuser", False):
-        return True
-    if getattr(user, "perfil", "") == "ADMIN":
-        return True
-    return user.groups.filter(name="Gestor").exists()
+
 
 
 
@@ -1058,3 +1246,4 @@ def chamado_modal(request, pk: int):
         request=request,
     )
     return JsonResponse({"html": html})
+
