@@ -1,0 +1,99 @@
+{# Este HTML é carregado via HTMX dentro do modal #}
+
+<div class="modal-header">
+  <h5 class="modal-title">Detalhes do Chamado</h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+</div>
+
+<div class="modal-body">
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <div class="fw-semibold">Chamado #{{ chamado.id }} — {{ chamado.tipo.nome }}</div>
+    <span class="badge bg-secondary">{{ chamado.get_status_display }}</span>
+  </div>
+
+  <div class="text-muted small mb-3">
+    <strong>Solicitante:</strong> {{ chamado.solicitante }} ·
+    <strong>Criado em:</strong> {{ chamado.criado_em|date:"d/m/Y H:i" }}
+  </div>
+
+  {# ===== Abertura (sem anexos) ===== #}
+  <div class="card mb-3">
+    <div class="card-header bg-light"><strong>Abertura</strong></div>
+    <div class="card-body">
+      {% if qa_rows %}
+        <div class="vstack gap-2">
+          {% for r in qa_rows %}
+            <div class="row gx-3">
+              <div class="col-12 col-md-5 text-muted">{{ r.label }}</div>
+              <div class="col-12 col-md-7 text-break">
+                {% if r.value %}
+                  {{ r.value|linebreaksbr }}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="text-muted">Sem informações de abertura.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ===== Tratativa (somente leitura) ===== #}
+  <div class="card mb-3">
+    <div class="card-header bg-light"><strong>Tratativa (Administrativo)</strong></div>
+    <div class="card-body">
+      {% if chamado.tratativa_adm %}
+        <div class="mb-2 text-break">{{ chamado.tratativa_adm|linebreaksbr }}</div>
+      {% else %}
+        <div class="text-muted">Sem atualização de tratativa.</div>
+      {% endif %}
+      <div class="small text-muted">
+        {% if chamado.atendente_nome %}
+          <strong>Atendente:</strong> {{ chamado.atendente_nome }}
+        {% elif chamado.atendente %}
+          <strong>Atendente:</strong> {{ chamado.atendente }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ===== Conversa ===== #}
+  <div class="card">
+    <div class="card-header bg-light"><strong>Conversa</strong></div>
+    <div class="card-body">
+      {% if mensagens %}
+        <div class="vstack gap-2">
+          {% for m in mensagens %}
+            <div class="border rounded p-2">
+              <div class="small text-muted mb-1">
+                {{ m.autor }} — {{ m.criado_em|date:"d/m/Y H:i" }}
+              </div>
+              <div class="text-break">
+                {% if m.mensagem %}
+                  {{ m.mensagem|linebreaksbr }}
+                {% elif m.texto %}
+                  {{ m.texto|linebreaksbr }}
+                {% elif m.conteudo_texto %}
+                  {{ m.conteudo_texto|linebreaksbr }}
+                {% elif m.conteudo %}
+                  {{ m.conteudo|linebreaksbr }}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="text-muted">Sem mensagens.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+</div>

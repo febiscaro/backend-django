@@ -1,0 +1,33 @@
+{# carregado via HTMX no #relatorioModal .modal-content #}
+<div class="modal-header">
+  <h5 class="modal-title">Excluir solicitação</h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+</div>
+
+<div class="modal-body">
+  <p class="mb-1">
+    Tem certeza que deseja <strong>excluir</strong> o Chamado
+    <strong>#{{ chamado.id }}</strong> — <em>{{ chamado.tipo.nome }}</em>?
+  </p>
+  <ul class="small text-muted mb-0">
+    <li>Solicitante: {{ chamado.solicitante }}</li>
+    <li>Criado em: {{ chamado.criado_em|date:"d/m/Y H:i" }}</li>
+  </ul>
+  <div class="alert alert-warning mt-3 mb-0">
+    Esta ação é <strong>irreversível</strong> e removerá também mensagens e dados relacionados.
+  </div>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+
+  <form
+    method="post"
+    action="{% url 'solicitacoes:relatorio_chamado_delete' chamado.id %}"
+    hx-post="{% url 'solicitacoes:relatorio_chamado_delete' chamado.id %}"
+    hx-target="this"
+    hx-swap="none">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Confirmar exclusão</button>
+  </form>
+</div>

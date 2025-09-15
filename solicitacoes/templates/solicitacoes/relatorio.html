@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h5 m-0">Relatório de Solicitações</h1>
+    <a href="{% url 'solicitacoes:gerenciar_chamados' %}" class="btn btn-outline-secondary btn-sm">← Voltar</a>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label">Pesquisar (ID ou Solicitante)</label>
+          <input type="text" name="q" value="{{ filters.q }}" class="form-control" placeholder="Ex.: 32 ou Maria">
+        </div>
+
+        <div class="col-6 col-md-2">
+          <label class="form-label">Tipo</label>
+          <select name="tipo" class="form-select">
+            <option value="">Todos</option>
+            {% for t in tipos %}
+              <option value="{{ t.tipo_id }}" {% if filters.tipo|stringformat:"s" == t.tipo_id|stringformat:"s" %}selected{% endif %}>
+                {{ t.tipo__nome }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <label class="form-label">Status</label>
+          <select name="status" class="form-select">
+            <option value="">Todos</option>
+            {% for code, label in status_choices %}
+              <option value="{{ code }}" {% if filters.status == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <label class="form-label">De</label>
+          <input type="date" name="de" value="{{ filters.de }}" class="form-control">
+        </div>
+
+        <div class="col-6 col-md-2">
+          <label class="form-label">Até</label>
+          <input type="date" name="ate" value="{{ filters.ate }}" class="form-control">
+        </div>
+
+        <div class="col-12 col-md-1 d-grid">
+          <button class="btn btn-primary">Filtrar</button>
+        </div>
+
+        {% if can_export %}
+          <div class="col-12 col-md-2 d-grid d-md-block ms-md-auto">
+            <a class="btn btn-success w-100"
+               href="?{% if qs_keep %}{{ qs_keep }}&{% endif %}export=xlsx">
+              Exportar Excel
+            </a>
+          </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="mb-2 text-muted small">Total: {{ total }} solicitações</div>
+
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 80px;">ID</th>
+              <th>Solicitante</th>
+              <th>Tipo</th>
+              <th>Status</th>
+              <th style="width: 160px;">Criado em</th>
+              {% if request.user.is_superuser %}
+                <th style="width: 170px;">Ações</th>
+              {% else %}
+                <th style="width: 100px;">Ações</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in page_obj.object_list %}
+              <tr id="row-{{ c.id }}">
+                <td>#{{ c.id }}</td>
+                <td class="text-truncate" style="max-width: 360px;">{{ c.solicitante }}</td>
+                <td class="text-truncate" style="max-width: 280px;">{{ c.tipo.nome }}</td>
+                <td>{{ c.get_status_display }}</td>
+                <td>{{ c.criado_em|date:"d/m/Y H:i" }}</td>
+                <td class="text-nowrap">
+                  {# Ver detalhes no modal #}
+                  <button
+                    class="btn btn-sm btn-outline-primary"
+                    hx-get="{% url 'solicitacoes:relatorio_chamado_modal' c.id %}"
+                    hx-target="#relatorioModal .modal-content"
+                    hx-trigger="click"
+                    data-bs-toggle="modal"
+                    data-bs-target="#relatorioModal">
+                    Ver
+                  </button>
+
+                  {% if request.user.is_superuser %}
+                    {# Excluir (abre modal de confirmação) #}
+                    <button
+                      class="btn btn-sm btn-outline-danger ms-1"
+                      hx-get="{% url 'solicitacoes:relatorio_chamado_delete' c.id %}"
+                      hx-target="#relatorioModal .modal-content"
+                      hx-trigger="click"
+                      data-bs-toggle="modal"
+                      data-bs-target="#relatorioModal">
+                      Excluir
+                    </button>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" class="text-center text-muted">Nenhuma solicitação encontrada.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <nav aria-label="Paginação" class="d-flex justify-content-center">
+        <ul class="pagination pagination-sm m-0">
+          {% with qs=qs_keep %}
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?{% if qs %}{{ qs }}&{% endif %}page={{ page_obj.previous_page_number }}">«</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">«</span></li>
+            {% endif %}
+
+            <li class="page-item active">
+              <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+            </li>
+
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?{% if qs %}{{ qs }}&{% endif %}page={{ page_obj.next_page_number }}">»</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">»</span></li>
+            {% endif %}
+          {% endwith %}
+        </ul>
+      </nav>
+    </div>
+  </div>
+</div>
+
+{# Modal reutilizado para VER e para EXCLUIR (conteúdo vem dos parciais) #}
+<div class="modal fade" id="relatorioModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content"></div>
+  </div>
+</div>
+
+<script>
+  // Quando a exclusão concluir (view retorna 204 + HX-Trigger)
+  document.body.addEventListener('chamadoDeleted', function (e) {
+    const id = e.detail && e.detail.id;
+    if (id) {
+      const row = document.getElementById('row-' + id);
+      if (row) row.remove();
+    }
+    const modalEl = document.getElementById('relatorioModal');
+    const instance = bootstrap.Modal.getInstance(modalEl);
+    if (instance) instance.hide();
+  });
+</script>
+{% endblock %}
