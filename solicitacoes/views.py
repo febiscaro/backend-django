@@ -1,89 +1,44 @@
-# -*- coding: utf-8 -*-
+
 import re
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from io import BytesIO
 from urllib.parse import urlencode
-
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import EmptyPage, Paginator
 from django.db import OperationalError, transaction
-from django.db.models import Max
+from django.db.models import Count, Max, Q
 from django.forms import inlineformset_factory
 from django.http import (
+    Http404,
     HttpResponse,
     HttpResponseBadRequest,
     HttpResponseForbidden,
     JsonResponse,
 )
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
-from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Count
-from django.http import JsonResponse
-from django.shortcuts import render
-# solicitacoes/views.py
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.db.models import Count
 from django.utils.timezone import now
-from datetime import timedelta
-
-from .models import Chamado
-from django.contrib.auth.decorators import login_required
-from django.db.models import Q
-from django.http import JsonResponse
-from django.urls import reverse
-from django.contrib.auth.decorators import login_required
-from django.db.models import Q
-from django.http import JsonResponse
-from django.urls import reverse
-from django.core.cache import cache
-
-
-from django.http import JsonResponse, Http404
-from django.template.loader import render_to_string
-from django.views.decorators.http import require_GET
-from django.shortcuts import get_object_or_404
-
-# --- imports (no topo do solicitacoes/views.py) ---
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpResponseForbidden
-from django.shortcuts import get_object_or_404
-from django.template.loader import render_to_string
-from django.views.decorators.http import require_http_methods
-
-from .models import Chamado  # ajuste se seu caminho for diferentea
-# solicitacoes/views.py
-from django.http import JsonResponse, Http404
-from django.template.loader import render_to_string
-from django.views.decorators.http import require_GET
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
-from django.shortcuts import get_object_or_404, redirect
-from django.contrib import messages
-from accounts.models import User  # garante acesso às constantes de perfil
-
-from solicitacoes.models import Chamado
-
-
-
-
-
-
-
-
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
+from accounts.models import User  # acesso às constantes de perfil
 from .forms import (
     ChamadoMensagemForm,
     NovaSolicitacaoTipoForm,
     PerguntaTipoSolicitacaoForm,
     TipoSolicitacaoForm,
 )
+import json
+from django.db import transaction
+from django.http import HttpResponse, HttpResponseForbidden
+from django.shortcuts import get_object_or_404, render
+
 from .models import (
     Chamado,
     ChamadoMensagem,
@@ -93,6 +48,7 @@ from .models import (
     SecaoVista,
     TipoSolicitacao,
 )
+
 
 # Para onde voltar após mudança de status (admins)
 NEXT_AFTER_STATUS_CHANGE = "solicitacoes:gerenciar_chamados"
@@ -1247,3 +1203,346 @@ def chamado_modal(request, pk: int):
     )
     return JsonResponse({"html": html})
 
+
+
+
+
+
+
+def _is_gestor_or_superuser(u):
+    return (u.is_authenticated and (u.is_superuser or getattr(u, "perfil", None) == "GESTOR"))
+
+admin_report_required = user_passes_test(_is_gestor_or_superuser)
+
+@admin_report_required
+def relatorio_solicitacoes(request):
+    # ----- Base Query
+    qs = (
+        Chamado.objects
+        .select_related("tipo", "solicitante")
+        .order_by("-criado_em")
+    )
+
+    # ----- Filtros
+    q = (request.GET.get("q") or "").strip()            # ID ou solicitante
+    tipo = (request.GET.get("tipo") or "").strip()      # tipo_id
+    status = (request.GET.get("status") or "").strip()  # código do status
+    de = (request.GET.get("de") or "").strip()          # YYYY-MM-DD
+    ate = (request.GET.get("ate") or "").strip()        # YYYY-MM-DD
+
+    # q: número -> ID; texto -> campos do solicitante
+    if q:
+        if q.isdigit():
+            qs = qs.filter(id=int(q))
+        else:
+            UserModel = get_user_model()
+            user_fields = {f.name for f in UserModel._meta.get_fields() if hasattr(f, "name")}
+            qf = (
+                Q(solicitante__username__icontains=q) |
+                Q(solicitante__first_name__icontains=q) |
+                Q(solicitante__last_name__icontains=q)
+            )
+            if "nome_completo" in user_fields:
+                qf |= Q(solicitante__nome_completo__icontains=q)
+            qs = qs.filter(qf)
+
+    if tipo:
+        qs = qs.filter(tipo_id=tipo)
+
+    if status:
+        qs = qs.filter(status=status)
+
+    # período por data de criação
+    def _parse_d(dstr):
+        try:
+            return date.fromisoformat(dstr)
+        except Exception:
+            return None
+
+    d_de = _parse_d(de)
+    d_ate = _parse_d(ate)
+    if d_de:
+        qs = qs.filter(criado_em__date__gte=d_de)
+    if d_ate:
+        qs = qs.filter(criado_em__date__lte=d_ate)
+
+    # ----- Exportar Excel (respeitando filtros)
+    export = (request.GET.get("export") or "").lower()
+    can_export = _is_gestor_or_superuser(request.user)
+    if export == "xlsx" and can_export:
+        try:
+            from openpyxl import Workbook
+        except Exception:
+            return HttpResponseBadRequest("Exportação indisponível: instale 'openpyxl'.")
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Solicitações"
+
+        # Cabeçalho
+        ws.append(["ID", "Solicitante", "Tipo", "Status", "Criado em"])
+
+        # Linhas (sem paginação)
+        for c in qs.iterator():
+            solicitante_str = str(c.solicitante) if c.solicitante else ""
+            tipo_str = c.tipo.nome if getattr(c, "tipo", None) else ""
+            status_str = c.get_status_display() if hasattr(c, "get_status_display") else c.status
+            criado_str = c.criado_em.strftime("%d/%m/%Y %H:%M") if getattr(c, "criado_em", None) else ""
+            ws.append([c.id, solicitante_str, tipo_str, status_str, criado_str])
+
+        bio = BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+        resp = HttpResponse(
+            bio.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = 'attachment; filename="relatorio-solicitacoes.xlsx"'
+        return resp
+
+    # ----- Paginação
+    paginator = Paginator(qs, 50)
+    page_number = request.GET.get("page") or 1
+    page_obj = paginator.get_page(page_number)
+
+    # Opções do select de tipo
+    tipos = (
+        Chamado.objects
+        .select_related("tipo")
+        .values("tipo_id", "tipo__nome")
+        .distinct()
+        .order_by("tipo__nome")
+    )
+
+    # Status choices
+    status_choices = getattr(Chamado.Status, "choices", [])
+
+    # Querystring sem 'page' p/ paginação e export
+    params = request.GET.copy()
+    params.pop("page", None)
+    qs_keep = params.urlencode()
+
+    ctx = {
+        "page_obj": page_obj,
+        "total": paginator.count,
+        "tipos": tipos,
+        "status_choices": status_choices,
+        "filters": {"q": q, "tipo": tipo, "status": status, "de": de, "ate": ate},
+        "can_export": can_export,
+        "qs_keep": qs_keep,
+    }
+    return render(request, "solicitacoes/relatorio.html", ctx)
+
+
+
+
+# ... seus outros imports
+
+@login_required
+@admin_report_required
+@require_GET
+def relatorio_chamado_modal(request, pk: int):
+    chamado = get_object_or_404(
+        Chamado.objects.select_related("tipo", "solicitante"),
+        pk=pk,
+    )
+
+    # --- Respostas de abertura
+    respostas_qs = list(
+        RespostaChamado.objects.select_related("pergunta")
+        .filter(chamado=chamado)
+        .order_by("id")
+    )
+
+    def _as_text_generic(resp):
+        """
+        Procura em campos concretos (Char/Text/JSON) e retorna a
+        primeira string não vazia. Ignora FKs/arquivos.
+        NUNCA cai no __str__ do model (evita repetir a pergunta).
+        """
+        # Campos que não são conteúdo de resposta
+        blacklist = {
+            "id", "pk",
+            "chamado", "chamado_id",
+            "pergunta", "pergunta_id",
+            "criado_em", "atualizado_em",
+            "created", "updated", "modificado_em",
+            "autor", "autor_id",
+            "arquivo", "arquivos", "file", "files", "anexo", "anexos",
+        }
+
+        # Percorre apenas campos "concretos"
+        for f in getattr(resp._meta, "fields", []):
+            name = getattr(f, "name", "")
+            if not name or name in blacklist:
+                continue
+
+            # ignora relações
+            if getattr(f, "is_relation", False):
+                continue
+
+            try:
+                v = getattr(resp, name)
+            except Exception:
+                continue
+
+            if v in (None, ""):
+                continue
+
+            # ignora arquivo/FieldFile
+            if hasattr(v, "url") or hasattr(v, "file"):
+                continue
+
+            # coleções/JSON
+            if isinstance(v, (list, tuple)):
+                s = "\n".join(str(x) for x in v).strip()
+                if s:
+                    return s
+            elif isinstance(v, dict):
+                s = "\n".join(
+                    f"{k}: {vv}"
+                    for k, vv in v.items()
+                    if str(k).lower() not in ("anexo", "arquivo", "arquivos", "file", "files")
+                ).strip()
+                if s:
+                    return s
+            else:
+                s = str(v).strip()
+                if s:
+                    return s
+
+        # nada encontrado
+        return ""
+
+    # Mapa pergunta_id -> lista de textos
+    respostas_map = {}
+    for r in respostas_qs:
+        pid = getattr(r, "pergunta_id", None) or (getattr(r, "pergunta", None).pk if getattr(r, "pergunta", None) else None)
+        if not pid:
+            continue
+        txt = _as_text_generic(r)
+        if txt:
+            respostas_map.setdefault(pid, []).append(txt)
+
+    # --- Perguntas do tipo
+    perguntas = list(
+        PerguntaTipoSolicitacao.objects.filter(tipo=chamado.tipo).order_by("id")
+    )
+
+    qa_rows = []
+    for p in perguntas:
+        label = getattr(p, "nome", None) or getattr(p, "titulo", None) or str(p)
+        lcl = (label or "").lower()
+
+        # oculta perguntas de anexo
+        if "anexo" in lcl:
+            continue
+
+        pid = getattr(p, "id", None)
+        val = "\n".join(respostas_map.get(pid, [])) if pid else ""
+
+        # fallbacks do próprio Chamado
+        if not val:
+            if "nome" in lcl and ("solicita" in lcl or "daria" in lcl):
+                for attr in ("titulo", "nome", "assunto", "nome_solicitacao"):
+                    v = getattr(chamado, attr, None)
+                    if v and str(v).strip():
+                        val = str(v).strip()
+                        break
+            if not val and ("detal" in lcl or "descr" in lcl):
+                for attr in ("detalhamento", "descricao", "descricao_solicitacao", "observacoes", "observacao"):
+                    v = getattr(chamado, attr, None)
+                    if v and str(v).strip():
+                        val = str(v).strip()
+                        break
+
+        qa_rows.append({"label": label, "value": val})
+
+    # Se não houver perguntas, tenta exibir título/detalhamento do Chamado
+    if not qa_rows:
+        def _maybe(label, *attrs):
+            for a in attrs:
+                v = getattr(chamado, a, None)
+                if v and str(v).strip():
+                    qa_rows.append({"label": label, "value": str(v).strip()})
+                    return
+        _maybe("Título / Nome da Solicitação", "titulo", "nome", "assunto", "nome_solicitacao")
+        _maybe("Detalhamento da Solicitação", "detalhamento", "descricao", "descricao_solicitacao")
+
+    # --- Mensagens
+    mensagens = (
+        ChamadoMensagem.objects.filter(chamado=chamado)
+        .select_related("autor")
+        .order_by("criado_em")
+    )
+
+    ctx = {
+        "chamado": chamado,
+        "qa_rows": qa_rows,
+        "mensagens": mensagens,
+    }
+    return render(request, "solicitacoes/_relatorio_modal.html", ctx)
+
+
+
+
+# util opcional para limpar arquivos de FileField/ImageField
+def _delete_files_of(obj):
+    from django.db.models.fields.files import FileField
+    for f in obj._meta.get_fields():
+        if isinstance(getattr(f, "field", None), FileField) or isinstance(f, FileField):
+            try:
+                file = getattr(obj, f.name)
+                if file and hasattr(file, "delete"):
+                    file.delete(save=False)
+            except Exception:
+                pass
+
+def _delete_related_files(chamado):
+    # percorre relacionamentos one-to-many/one-to-one e apaga arquivos se houver
+    for rel in chamado._meta.get_fields():
+        if rel.auto_created and (rel.one_to_many or rel.one_to_one):
+            accessor = getattr(chamado, rel.get_accessor_name(), None)
+            if accessor is None:
+                continue
+            try:
+                if rel.one_to_one:
+                    obj = accessor
+                    if obj:
+                        _delete_files_of(obj)
+                else:
+                    for obj in accessor.all():
+                        _delete_files_of(obj)
+            except Exception:
+                pass
+    # por via das dúvidas, também no próprio chamado
+    _delete_files_of(chamado)
+
+@login_required
+def relatorio_chamado_delete(request, pk: int):
+    """
+    GET  -> retorna HTML de confirmação (carregado no modal via HTMX).
+    POST -> executa a exclusão (apenas superusuário).
+    """
+    chamado = get_object_or_404(Chamado.objects.select_related("tipo", "solicitante"), pk=pk)
+
+    if request.method == "GET":
+        if not request.user.is_superuser:
+            return HttpResponseForbidden("Ação permitida apenas para superusuário.")
+        ctx = {"chamado": chamado}
+        return render(request, "solicitacoes/_relatorio_delete_confirm.html", ctx)
+
+    # POST
+    if not request.user.is_superuser:
+        return HttpResponseForbidden("Ação permitida apenas para superusuário.")
+
+    with transaction.atomic():
+        # remover arquivos em disco (se seus modelos tiverem FileField/ImageField)
+        _delete_related_files(chamado)
+        chamado.delete()
+
+    # resposta vazia, só disparando evento p/ remover a linha e fechar o modal
+    headers = {
+        "HX-Trigger": json.dumps({"chamadoDeleted": {"id": pk}}),
+    }
+    return HttpResponse(status=204, headers=headers)

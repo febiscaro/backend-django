@@ -49,6 +49,18 @@ urlpatterns = [
     path("dashboard/data/", views.dashboard_data, name="dashboard-data"),
     path("dashboard/table/", views.dashboard_table, name="dashboard-table"),
     path("chamados/<int:pk>/modal/", views.chamado_modal, name="chamado-modal"),
+
+
+
+    #pagine de controle de chamados e relatórios
+    path("relatorio/", views.relatorio_solicitacoes, name="relatorio_solicitacoes"),
+    path(
+        "relatorio/chamado/<int:pk>/",
+        views.relatorio_chamado_modal,
+        name="relatorio_chamado_modal",
+    ),
+    path("relatorio/chamado/<int:pk>/", views.relatorio_chamado_modal, name="relatorio_chamado_modal"),
+    path("relatorio/chamado/<int:pk>/delete/", views.relatorio_chamado_delete, name="relatorio_chamado_delete"),
     
 
 ]

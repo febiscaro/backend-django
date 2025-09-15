@@ -2,7 +2,7 @@
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm" aria-label="Barra de navegação principal">
   <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="/">Enprodes Sys</a>
+    <a class="navbar-brand fw-bold" href="/">EnprodeSys</a>
 
     <button class="navbar-toggler" type="button"
             data-bs-toggle="offcanvas" data-bs-target="#mainNavOffcanvas"
@@ -12,7 +12,7 @@
 
     <div class="offcanvas offcanvas-end text-bg-dark" tabindex="-1" id="mainNavOffcanvas" aria-labelledby="mainNavOffcanvasLabel">
       <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="mainNavOffcanvasLabel">Enprodes Sys</h5>
+        <h5 class="offcanvas-title" id="mainNavOffcanvasLabel">EnprodeSys</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
       </div>
 
@@ -21,7 +21,7 @@
 
           {% if request.user.is_authenticated %}
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle {% if 'solicitacoes' in request.path %}active{% endif %}"
+              <a class="nav-link dropdown-toggle {% if 'solicitacoes' in request.path and 'relatorio' not in request.path %}active{% endif %}"
                  href="#" id="menuChamados" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 Chamados
               </a>
@@ -76,6 +76,25 @@
                 {% endif %}
               </ul>
             </li>
+
+            {# ==== NOVO MENU: RELATÓRIOS (superusuário OU gestor) ==== #}
+            {% if request.user.is_superuser or request.user.perfil == 'GESTOR' %}
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle {% if 'solicitacoes/relatorio' in request.path %}active{% endif %}"
+                   href="#" id="menuRelatorios" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Relatórios
+                </a>
+                <ul class="dropdown-menu" aria-labelledby="menuRelatorios">
+                  <li>
+                    <a class="dropdown-item {% if 'solicitacoes/relatorio' in request.path %}active{% endif %}"
+                       href="{% url 'solicitacoes:relatorio_solicitacoes' %}">
+                      Solicitações
+                    </a>
+                  </li>
+                </ul>
+              </li>
+            {% endif %}
+
           {% endif %}
 
           {% if request.user.is_authenticated and request.user.is_superuser %}
