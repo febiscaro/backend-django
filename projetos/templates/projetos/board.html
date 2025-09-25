@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Board — {{ centro.nome }}{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'projetos/css/board.css' %}?v=1">
+{% endblock %}
+
+{% block content %}
+  <div class="board-page">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h1 class="h5 m-0 fw-bold">{{ centro.nome }}</h1>
+        <div class="text-muted small">Código: {{ centro.codigo }}{% if centro.cliente %} • Cliente: {{ centro.cliente }}{% endif %}</div>
+      </div>
+      <div class="d-flex gap-2">
+        <!-- Próximo passo: modal “Nova tarefa” -->
+        <a href="#" class="btn btn-primary disabled" aria-disabled="true" title="Em breve">+ Nova tarefa</a>
+      </div>
+    </div>
+
+    <div class="board" id="board">
+      {% for status, data in columns.items %}
+        <section class="coluna" data-status="{{ status }}">
+          <header class="coluna__header">
+            <h2 class="coluna__title">{{ data.label }}</h2>
+            <span class="coluna__count">{{ data.items|length }}</span>
+          </header>
+          <div class="coluna__body">
+            {% if data.items %}
+              {% for t in data.items %}
+                <article class="task" data-task-id="{{ t.id }}">
+                  <h3 class="task__title">{{ t.nome }}</h3>
+                  <div class="task__meta">
+                    Projeto: {{ t.projeto.nome }}
+                    {% if t.horas_homem_previstas %} • HH prev.: {{ t.horas_homem_previstas }}{% endif %}
+                    {% if t.data_inicio_prevista or t.data_fim_prevista %}
+                      • {{ t.data_inicio_prevista|date:"d/m" }}{% if t.data_fim_prevista %}–{{ t.data_fim_prevista|date:"d/m" }}{% endif %}
+                    {% endif %}
+                  </div>
+                </article>
+              {% endfor %}
+            {% else %}
+              <div class="coluna__empty">Sem tarefas</div>
+            {% endif %}
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'projetos/js/board.js' %}?v=1"></script>
+{% endblock %}
+

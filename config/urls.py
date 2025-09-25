@@ -60,6 +60,7 @@ urlpatterns = [
     path("accounts/", include("accounts.urls")),
     path("solicitacoes/", include(("solicitacoes.urls", "solicitacoes"), namespace="solicitacoes")),
     path("notifications/", include(("notifications.urls", "notifications"), namespace="notifications")),
+    path("projetos/", include("projetos.urls")), 
 
 ]
 

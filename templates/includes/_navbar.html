@@ -77,6 +77,46 @@
               </ul>
             </li>
 
+            {# ==== NOVO MENU: PROJETOS ==== #}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle
+                        {% if 'projetos/centros' in request.path or 'projetos/minhas' in request.path %}active{% endif %}"
+                 href="#" id="menuProjetos" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                Projetos
+              </a>
+              <ul class="dropdown-menu" aria-labelledby="menuProjetos">
+
+                {# CC (Centros de Custo) — visível para SUPERUSER ou GESTOR #}
+                {% if request.user.is_superuser or request.user.perfil == 'GESTOR' %}
+                  <li>
+                    <a class="dropdown-item {% if 'projetos/centros' in request.path %}active{% endif %}"
+                       href="{% url 'projetos:centros_list' %}">
+                      CC (Centros de Custo)
+                    </a>
+                  </li>
+
+                  {# Gestão — apontando para a lista de CC; o board abre ao clicar no centro #}
+                  <li>
+                    <a class="dropdown-item {% if 'projetos/centros' in request.path %}active{% endif %}"
+                       href="{% url 'projetos:centros_list' %}">
+                      Gestão
+                    </a>
+                  </li>
+
+                  <li><hr class="dropdown-divider"></li>
+                {% endif %}
+
+                {# Minhas Tarefas — qualquer usuário logado #}
+                <li>
+                  <a class="dropdown-item {% if 'projetos/minhas' in request.path %}active{% endif %}"
+                     href="#"
+                     title="Em breve: suas tarefas liberadas para execução">
+                    Minhas Tarefas
+                  </a>
+                </li>
+              </ul>
+            </li>
+
             {# ==== NOVO MENU: RELATÓRIOS (superusuário OU gestor) ==== #}
             {% if request.user.is_superuser or request.user.perfil == 'GESTOR' %}
               <li class="nav-item dropdown">
