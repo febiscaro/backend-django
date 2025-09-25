@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "core",
     "solicitacoes.apps.SolicitacoesConfig",
     "notifications.apps.NotificationsConfig",
+    "projetos.apps.ProjetosConfig",
 ]
 
  

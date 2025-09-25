@@ -1,0 +1,42 @@
+/* Botão padrão (mesmo estilo já usado nos cards page) */
+.btn {
+  display: inline-block; padding: 10px 14px; border-radius: 10px; text-decoration: none;
+  background: #1f6feb; color: #fff; font-weight: 600; border: none; cursor: pointer;
+}
+.btn:hover { filter: brightness(0.95); }
+.btn--ghost { background: #e5e7eb; color: #111827; }
+.btn--ghost:hover { filter: none; background:#d1d5db; }
+
+/* Modal */
+.modal { position: fixed; inset: 0; display: none; }
+.modal[aria-hidden="false"] { display: block; }
+
+.modal__backdrop {
+  position: absolute; inset: 0; background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.modal__dialog {
+  position: relative; margin: 5vh auto; max-width: 720px; background: #fff; color:#0f172a;
+  border-radius: 14px; box-shadow: 0 12px 40px rgba(2,6,23,0.2); overflow: hidden;
+}
+
+.modal__header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid #e5e7eb; }
+.modal__title  { margin:0; font-size:18px; font-weight:800; }
+.modal__close  { background: transparent; border: 0; font-size: 24px; line-height: 1; cursor: pointer; color:#334155; }
+
+.modal__body   { padding: 16px 20px; }
+.modal__footer { display:flex; gap:10px; justify-content:flex-end; padding: 12px 20px; border-top:1px solid #e5e7eb; }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.form-field { display:flex; flex-direction:column; gap:6px; }
+.form-field--full { grid-column: 1 / -1; }
+.form-field span { font-size: 12px; color: #334155; font-weight: 600; }
+.form-field input, .form-field textarea {
+  border:1px solid #e5e7eb; border-radius:10px; padding:10px; font-size:14px; color:#111827;
+}
+.form-field input:focus, .form-field textarea:focus { outline: 2px solid #93c5fd; border-color:#93c5fd; }

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Centros de Custo{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'projetos/css/centros.css' %}?v=3">
+{% endblock %}
+
+{% block content %}
+  <div class="page-centros">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="h4 m-0 fw-bold">Centros de Custo</h1>
+
+      <!-- Botão Bootstrap que abre o modal -->
+      <button
+        type="button"
+        class="btn btn-primary"
+        data-bs-toggle="modal"
+        data-bs-target="#modalCreateCentro"
+      >
+        + Adicionar Centro de Custo
+      </button>
+    </div>
+
+    {% if centros %}
+      <div class="grid">
+        {% for c in centros %}
+          <a
+            class="card square"
+            href="{% url 'projetos:board' centro_id=c.id %}"
+            title="Abrir board de {{ c.nome }}"
+            {% if c.background_image %}
+              style="background-image:
+                       linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0.15)),
+                       url('{{ c.background_image.url }}');"
+            {% endif %}
+          >
+            <div class="card-content">
+              <h3 class="card-title">{{ c.nome }}</h3>
+              <div class="card-subtle">
+                Código: {{ c.codigo }}{% if c.cliente %} • Cliente: {{ c.cliente }}{% endif %}
+              </div>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-muted fst-italic">Nenhum centro encontrado.</p>
+    {% endif %}
+  </div>
+
+  <!-- Modal Bootstrap -->
+  <div class="modal fade" id="modalCreateCentro" tabindex="-1" aria-labelledby="createCentroTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="createCentroTitle" class="modal-title fs-5">Novo Centro de Custo</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+
+        <form id="createCentroForm" method="post" enctype="multipart/form-data" action="#">
+          <div class="modal-body">
+            {% csrf_token %}
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Nome *</label>
+                <input class="form-control" type="text" name="nome" required maxlength="150">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Código interno *</label>
+                <input class="form-control" type="text" name="codigo" required maxlength="30">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Cliente</label>
+                <input class="form-control" type="text" name="cliente" maxlength="150">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">E-mail do contato</label>
+                <input class="form-control" type="email" name="contato_email">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Contato principal</label>
+                <input class="form-control" type="text" name="contato_nome" maxlength="100">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Telefone do contato</label>
+                <input class="form-control" type="text" name="contato_telefone" maxlength="30">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Início do contrato</label>
+                <input class="form-control" type="date" name="contrato_inicio">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Fim do contrato</label>
+                <input class="form-control" type="date" name="contrato_fim">
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Orçamento total (R$)</label>
+                <input class="form-control" type="number" name="orcamento_total" step="0.01" min="0">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Horas-homem previstas</label>
+                <input class="form-control" type="number" name="horas_previstas" step="0.25" min="0">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Imagem de fundo do card</label>
+                <input class="form-control" type="file" name="background_image" accept="image/*">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Domínios permitidos (um por linha)</label>
+                <textarea class="form-control" name="dominios" rows="3"
+                  placeholder="ex.: empresa.com.br&#10;filial.empresa.com.br"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'projetos/js/centros_modal.js' %}?v=3"></script>
+{% endblock %}
