@@ -7,6 +7,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
+from django.urls import path, include
+from django.urls import path, include
 
 from accounts.forms import CPFAuthenticationForm, PrettyPasswordChangeForm
 from solicitacoes.models import TipoSolicitacao   # ⬅️ add
@@ -55,6 +57,9 @@ urlpatterns = [
         ),
         name="password_change",
     ),
+
+    path("api/", include("config.api_urls")),     # 🔹 rotas REST principais
+    path("api/auth/", include("accounts.api.auth_urls")),  # 🔹 JWT (por CPF)
 
     # Apps
     path("accounts/", include("accounts.urls")),
