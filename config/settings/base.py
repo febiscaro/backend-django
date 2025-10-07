@@ -31,7 +31,8 @@ INSTALLED_APPS = [
 
     # 🔹 API / Angular
     "rest_framework",
-    "corsheaders",
+    "rest_framework_simplejwt",
+    "corsheaders"
 ]
 
 ALLOWED_EMAIL_DOMAINS = ["mirabit.com.br", "enprodes.com.br"]
