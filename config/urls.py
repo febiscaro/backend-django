@@ -9,6 +9,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.urls import path, include
 from django.urls import path, include
+from django.contrib import admin
+from django.urls import path, include
 
 from accounts.forms import CPFAuthenticationForm, PrettyPasswordChangeForm
 from solicitacoes.models import TipoSolicitacao   # ⬅️ add
@@ -71,3 +73,9 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    # todas as rotas da API ficam em /api/...
+    path("api/", include("config.api_urls")),
+]

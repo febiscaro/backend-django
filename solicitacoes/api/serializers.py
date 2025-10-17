@@ -1,46 +1,46 @@
 from rest_framework import serializers
 from solicitacoes.models import Chamado
 
+
 class ChamadoSerializer(serializers.ModelSerializer):
-    # Campos "seguros" (não quebram se não houver choices)
-    tipo_label = serializers.SerializerMethodField()
-    status_label = serializers.SerializerMethodField()
-    # Sempre expomos created_at, mapeando para o nome que existir no modelo
-    created_at = serializers.SerializerMethodField()
+    # Nome legível do tipo (FK para TipoSolicitacao)
+    tipo_nome = serializers.SerializerMethodField(read_only=True)
+    # Rótulo legível do status (choices do model)
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    # created_at compatível com o front (mapeia criado_em)
+    created_at = serializers.SerializerMethodField(read_only=True)
+    # nome do solicitante (só pra exibir)
+    solicitante_nome = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Chamado
         fields = [
-            'id',
-            'status', 'status_label',
-            'tipo', 'tipo_label',
-            'solicitante',
-            'created_at',
+            "id",
+            "tipo",            # id do TipoSolicitacao
+            "tipo_nome",       # nome do tipo
+            "status",
+            "status_label",
+            "solicitante",     # id do usuário
+            "solicitante_nome",
+            "created_at",
         ]
+        read_only_fields = ["tipo_nome", "status_label", "solicitante", "solicitante_nome", "created_at"]
 
-    # --- helpers robustos ---
-    def get_tipo_label(self, obj):
-        # se for choices, usa o display; senão, devolve o próprio valor legível
-        if hasattr(obj, 'get_tipo_display'):
-            try:
-                return obj.get_tipo_display()
-            except Exception:
-                pass
-        val = getattr(obj, 'tipo', None)
-        return str(val) if val is not None else None
-
-    def get_status_label(self, obj):
-        if hasattr(obj, 'get_status_display'):
-            try:
-                return obj.get_status_display()
-            except Exception:
-                pass
-        val = getattr(obj, 'status', None)
-        return str(val) if val is not None else None
+    # ----- getters -----
+    def get_tipo_nome(self, obj):
+        try:
+            return obj.tipo.nome
+        except Exception:
+            return None
 
     def get_created_at(self, obj):
-        # tenta vários nomes comuns
-        for name in ('created_at', 'created', 'criado_em', 'data_criacao'):
-            if hasattr(obj, name):
-                return getattr(obj, name)
-        return None
+        # compatibilidade: criado_em -> created_at
+        return getattr(obj, "criado_em", None)
+
+    def get_solicitante_nome(self, obj):
+        u = getattr(obj, "solicitante", None)
+        if not u:
+            return None
+        # tenta full_name; se vazio, usa str(user)
+        full = getattr(u, "get_full_name", lambda: "")() or ""
+        return full.strip() or str(u)
